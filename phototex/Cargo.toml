@@ -1,0 +1,12 @@
+[package]
+name = "phototex"
+version = "0.1.0"
+authors = ["Vincent Barrielle <vincent.barrielle@m4x.org>"]
+edition = "2018"
+
+[dependencies]
+
+glob = "0.2.11"
+clap = "2.32.0"
+log = "0.4.6"
+stderrlog = "0.4.1"
