@@ -1,7 +1,53 @@
 use std::path::{Path, PathBuf};
 use glob::glob;
+use image::{GenericImageView, ImageDecoder, ImageResult};
 
-fn find_images(images: &str, im_ext: &str) -> Vec<Vec<PathBuf>> {
+struct ImageInfo {
+    path: PathBuf,
+    dimensions: (u32, u32),
+}
+
+fn image_dimensions(path: &Path) -> ImageResult<(u32, u32)> {
+    let fin = std::fs::File::open(path)?;
+    let fin = std::io::BufReader::new(fin);
+
+    let ext = path.extension()
+        .and_then(|s| s.to_str())
+        .map_or("".to_string(), |s| s.to_ascii_lowercase());
+
+     match &ext[..] {
+        //#[cfg(feature = "jpeg")]
+        "jpg" | "jpeg" => image::jpeg::JPEGDecoder::new(fin).dimensions(),
+        //#[cfg(feature = "png_codec")]
+        "png" => image::png::PNGDecoder::new(fin).dimensions(),
+        //#[cfg(feature = "gif_codec")]
+        "gif" =>  image::gif::Decoder::new(fin).dimensions(),
+        //#[cfg(feature = "webp")]
+        "webp" => image::webp::WebpDecoder::new(fin).dimensions(),
+        //#[cfg(feature = "tiff")]
+        "tif" | "tiff" => image::tiff::TIFFDecoder::new(fin)?.dimensions(),
+        //#[cfg(feature = "tga")]
+        "tga" => image::tga::TGADecoder::new(fin).dimensions(),
+        //#[cfg(feature = "bmp")]
+        "bmp" => image::bmp::BMPDecoder::new(fin).dimensions(),
+        //#[cfg(feature = "ico")]
+        "ico" => image::ico::ICODecoder::new(fin)?.dimensions(),
+        //#[cfg(feature = "hdr")]
+        "hdr" => image::hdr::HDRAdapter::new(fin)?.dimensions(),
+        //#[cfg(feature = "pnm")]
+        "pbm" | "pam" | "ppm" | "pgm" => {
+            image::pnm::PNMDecoder::new(fin)?.dimensions()
+        },
+        format => {
+            Err(image::ImageError::UnsupportedError(format!(
+                "Image format image/{:?} is not supported.",
+                format
+            )))
+        }
+    }
+}
+
+fn find_images(images: &str, im_ext: &str) -> Vec<Vec<ImageInfo>> {
     let images = Path::new(&images);
     // unwraping on pattern because a bad pattern is a programming error here
     let mut paths = Vec::new();
@@ -12,8 +58,21 @@ fn find_images(images: &str, im_ext: &str) -> Vec<Vec<PathBuf>> {
                 &folder.join(format!("*.{}", im_ext)).to_string_lossy()
             ).unwrap() {
                 if let Ok(image) = image {
-                    log::info!("Including image {:?}", image);
-                    images.push(image);
+                    let image_dims = image_dimensions(&image);
+                    if let Ok(image_dims) = image_dims {
+                        log::info!(
+                            "Including image {:?} ({}x{})",
+                            image,
+                            image_dims.0,
+                            image_dims.1,
+                        );
+                        images.push(ImageInfo {
+                            path: image,
+                            dimensions: image_dims,
+                        });
+                    } else {
+                        log::warn!("Could not open image {:?}", image);
+                    }
                 } else {
                     log::warn!("Ignoring image {:?}", image.unwrap_err());
                 }
