@@ -85,6 +85,29 @@ fn find_images(images: &str, im_ext: &str) -> Vec<Vec<ImageInfo>> {
     paths
 }
 
+fn replace(io_string: &mut String, pat: &str, replace_with: &str) -> Result<(), ()> {
+    let pos = io_string.find(pat).ok_or(())?;
+    io_string.replace_range(pos..(pos + pat.len()), replace_with);
+    Ok(())
+}
+
+struct BookInfo {
+    title: String,
+}
+
+fn write_toplevel(out_folder: &str, book_info: &BookInfo) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut toplevel_text = include_str!("../data/toplevel.tex").to_string();
+    replace(&mut toplevel_text, "PHOTOTEX_TITLE", &book_info.title);
+
+
+    let toplevel_file = Path::new(&out_folder).join("photobook.tex");
+    let f = std::fs::File::create(&toplevel_file)?;
+    let mut writer = std::io::BufWriter::new(f);
+    write!(writer, "{}", toplevel_text)?;
+    Ok(())
+}
+
 fn main() {
     let matches = clap::App::new("phototex")
         .version("0.1")
@@ -94,6 +117,13 @@ fn main() {
             clap::Arg::with_name("images")
             .value_name("FOLDER")
             .help("Path to the images selection folders")
+            .takes_value(true)
+        )
+        .arg(
+            clap::Arg::with_name("out_folder")
+            .short("-o")
+            .value_name("OUT_FOLDER")
+            .help("Path where the latex should be written. Defaults to .")
             .takes_value(true)
         )
         .arg(
@@ -118,11 +148,19 @@ fn main() {
 
     let images = matches
         .value_of("images")
-        .expect("Path to images is mandatory");
+        .unwrap_or_else(|| {
+            println!("{}", matches.usage());
+            std::process::exit(1);
+        });
+
+    let out_folder = matches.value_of("out_folder").unwrap_or(".");
 
     let im_ext = matches.value_of("im_ext").unwrap_or("jpg");
 
     log::info!("Using images path: {}", images);
 
-    let im_paths = find_images(images, im_ext);
+    let im_infos = find_images(images, im_ext);
+
+    let book_info = BookInfo { title: "Titre".to_string() };
+    write_toplevel(out_folder, &book_info);
 }
