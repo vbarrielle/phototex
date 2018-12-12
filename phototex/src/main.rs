@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 use glob::glob;
-use image::{GenericImageView, ImageDecoder, ImageResult};
+use image::{ImageDecoder, ImageResult};
 
 struct ImageInfo {
     path: PathBuf,
