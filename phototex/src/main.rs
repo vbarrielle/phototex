@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 use glob::glob;
 use image::{ImageDecoder, ImageResult};
+use itertools::Itertools;
+use std::io::Write;
 
 struct ImageInfo {
     path: PathBuf,
@@ -95,10 +97,34 @@ struct BookInfo {
     title: String,
 }
 
-fn write_toplevel(out_folder: &str, book_info: &BookInfo) -> std::io::Result<()> {
-    use std::io::Write;
+enum PageKind {
+    TwoLandscapes,
+    OnePortrait,
+}
+
+struct PageInfo {
+    path: PathBuf,
+    kind: PageKind,
+}
+
+fn write_toplevel(
+    out_folder: &str,
+    book_info: &BookInfo,
+    page_infos: &[PageInfo],
+) -> std::io::Result<()> {
     let mut toplevel_text = include_str!("../data/toplevel.tex").to_string();
-    replace(&mut toplevel_text, "PHOTOTEX_TITLE", &book_info.title);
+    replace(&mut toplevel_text, "PHOTOTEX_TITLE", &book_info.title).unwrap();
+    let mut page_includes = String::new();
+    for page in page_infos {
+        if let Some(path) = page.path.to_str() {
+            page_includes.push_str(&format!("\\input{{{}}}\n", path));
+        } else {
+            log::error!("could not include page {:?}", page.path);
+        }
+    }
+    replace(
+        &mut toplevel_text, "PHOTOTEX_PAGES_INCLUDE_PLACEHOLDER", &page_includes
+    ).unwrap();
 
 
     let toplevel_file = Path::new(&out_folder).join("photobook.tex");
@@ -106,6 +132,59 @@ fn write_toplevel(out_folder: &str, book_info: &BookInfo) -> std::io::Result<()>
     let mut writer = std::io::BufWriter::new(f);
     write!(writer, "{}", toplevel_text)?;
     Ok(())
+}
+
+fn write_pages(
+    out_folder: &str,
+    images: &[Vec<ImageInfo>]
+) -> std::io::Result<Vec<PageInfo>> {
+    let nb_images = images.iter().map(|v| v.len()).sum();
+    let mut page_infos = Vec::with_capacity(nb_images);
+    for im_group in images {
+        for (im0, im1) in im_group
+            .iter()
+            .filter(|im| im.dimensions.0 >= im.dimensions.1)
+            .tuples() {
+            let page_id = page_infos.len();
+            let page_path = Path::new(&out_folder)
+                .join(format!("page{:03}", page_id));
+            std::fs::create_dir_all(&page_path)?;
+            let page_path = page_path.join("page.tex");
+            let f = std::fs::File::create(&page_path)?;
+            let mut writer = std::io::BufWriter::new(f);
+            let mut page_text = include_str!("../data/page_2_landscapes.tex")
+                .to_string();
+            if let Some(im0_path) = im0.path.to_str() {
+                replace(
+                    &mut page_text, "PHOTOTEX_FIRST_IMAGE_PATH", im0_path,
+                ).unwrap();
+            } else {
+                log::error!(
+                    "could not include image path {:?} in {:?}: utf-8 failed",
+                    im0.path, page_path,
+                );
+            }
+            if let Some(im1_path) = im1.path.to_str() {
+                replace(
+                    &mut page_text, "PHOTOTEX_SECOND_IMAGE_PATH", im1_path,
+                ).unwrap();
+            } else {
+                log::error!(
+                    "could not include image path {:?} in {:?}: utf-8 failed",
+                    im1.path, page_path,
+                );
+            }
+            replace(&mut page_text, "PHOTOTEX_FIRST_LEGEND", "%");
+            replace(&mut page_text, "PHOTOTEX_SECOND_LEGEND", "%");
+            write!(writer, "{}", page_text)?;
+
+            page_infos.push(PageInfo {
+                path: page_path,
+                kind: PageKind::TwoLandscapes,
+            });
+        }
+    }
+    Ok(page_infos)
 }
 
 fn main() {
@@ -161,6 +240,12 @@ fn main() {
 
     let im_infos = find_images(images, im_ext);
 
-    let book_info = BookInfo { title: "Titre".to_string() };
-    write_toplevel(out_folder, &book_info);
+    if let Ok(page_infos) = write_pages(out_folder, &im_infos) {
+        let book_info = BookInfo { title: "Titre".to_string() };
+        if let Err(e) = write_toplevel(out_folder, &book_info, &page_infos) {
+            log::error!("Error writing toplevel: {:?}", e);
+        }
+    } else {
+        log::error!("Could not write pages!");
+    }
 }
