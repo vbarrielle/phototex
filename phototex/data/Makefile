@@ -1,6 +1,5 @@
 
-R = album.tex
-DPI=150
+R = PHOTOTEX_TOPLEVEL_FILE_NAME
 
 all: pdf
 
@@ -19,7 +18,4 @@ pdf: $(TEX) # title.pdf
 
 clean:
 	rubber --clean $(R)
-
-#title.pdf: title.tex ./images/cslogo.png
-#	rubber --pdf title.tex
 

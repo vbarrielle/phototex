@@ -127,10 +127,20 @@ fn write_toplevel(
     ).unwrap();
 
 
-    let toplevel_file = Path::new(&out_folder).join("photobook.tex");
+    let top_file_name = "photobook.tex";
+    let toplevel_file = Path::new(&out_folder).join(top_file_name);
     let f = std::fs::File::create(&toplevel_file)?;
     let mut writer = std::io::BufWriter::new(f);
     write!(writer, "{}", toplevel_text)?;
+
+    let makefile = Path::new(&out_folder).join("Makefile");
+    let mut makefile_text = include_str!("../data/Makefile").to_string();
+    replace(
+        &mut makefile_text, "PHOTOTEX_TOPLEVEL_FILE_NAME", top_file_name
+    ).unwrap();
+    let f = std::fs::File::create(&makefile)?;
+    let mut writer = std::io::BufWriter::new(f);
+    write!(writer, "{}", makefile_text)?;
     Ok(())
 }
 
@@ -174,8 +184,8 @@ fn write_pages(
                     im1.path, page_path,
                 );
             }
-            replace(&mut page_text, "PHOTOTEX_FIRST_LEGEND", "%");
-            replace(&mut page_text, "PHOTOTEX_SECOND_LEGEND", "%");
+            replace(&mut page_text, "PHOTOTEX_FIRST_LEGEND", "%").unwrap();
+            replace(&mut page_text, "PHOTOTEX_SECOND_LEGEND", "%").unwrap();
             write!(writer, "{}", page_text)?;
 
             page_infos.push(PageInfo {
