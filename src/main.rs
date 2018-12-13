@@ -3,6 +3,7 @@ use glob::glob;
 use image::{ImageDecoder, ImageResult};
 use itertools::Itertools;
 use std::io::Write;
+use std::error::Error;
 
 struct ImageInfo {
     path: PathBuf,
@@ -197,7 +198,7 @@ fn write_pages(
     Ok(page_infos)
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
     let matches = clap::App::new("phototex")
         .version("0.1")
         .author("Vincent Barrielle <vincent.barrielle@m4x.org>")
@@ -250,12 +251,8 @@ fn main() {
 
     let im_infos = find_images(images, im_ext);
 
-    if let Ok(page_infos) = write_pages(out_folder, &im_infos) {
-        let book_info = BookInfo { title: "Titre".to_string() };
-        if let Err(e) = write_toplevel(out_folder, &book_info, &page_infos) {
-            log::error!("Error writing toplevel: {:?}", e);
-        }
-    } else {
-        log::error!("Could not write pages!");
-    }
+    let page_infos = write_pages(out_folder, &im_infos)?;
+    let book_info = BookInfo { title: "Titre".to_string() };
+    write_toplevel(out_folder, &book_info, &page_infos)?;
+    Ok(())
 }
