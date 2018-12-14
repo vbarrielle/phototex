@@ -1,9 +1,9 @@
-use std::path::{Path, PathBuf};
 use glob::glob;
 use image::{ImageDecoder, ImageResult};
 use itertools::Itertools;
-use std::io::Write;
 use std::error::Error;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 
 struct ImageInfo {
     path: PathBuf,
@@ -14,17 +14,18 @@ fn image_dimensions(path: &Path) -> ImageResult<(u32, u32)> {
     let fin = std::fs::File::open(path)?;
     let fin = std::io::BufReader::new(fin);
 
-    let ext = path.extension()
+    let ext = path
+        .extension()
         .and_then(|s| s.to_str())
         .map_or("".to_string(), |s| s.to_ascii_lowercase());
 
-     match &ext[..] {
+    match &ext[..] {
         //#[cfg(feature = "jpeg")]
         "jpg" | "jpeg" => image::jpeg::JPEGDecoder::new(fin).dimensions(),
         //#[cfg(feature = "png_codec")]
         "png" => image::png::PNGDecoder::new(fin).dimensions(),
         //#[cfg(feature = "gif_codec")]
-        "gif" =>  image::gif::Decoder::new(fin).dimensions(),
+        "gif" => image::gif::Decoder::new(fin).dimensions(),
         //#[cfg(feature = "webp")]
         "webp" => image::webp::WebpDecoder::new(fin).dimensions(),
         //#[cfg(feature = "tiff")]
@@ -40,13 +41,11 @@ fn image_dimensions(path: &Path) -> ImageResult<(u32, u32)> {
         //#[cfg(feature = "pnm")]
         "pbm" | "pam" | "ppm" | "pgm" => {
             image::pnm::PNMDecoder::new(fin)?.dimensions()
-        },
-        format => {
-            Err(image::ImageError::UnsupportedError(format!(
-                "Image format image/{:?} is not supported.",
-                format
-            )))
         }
+        format => Err(image::ImageError::UnsupportedError(format!(
+            "Image format image/{:?} is not supported.",
+            format
+        ))),
     }
 }
 
@@ -57,9 +56,10 @@ fn find_images(images: &str, im_ext: &str) -> Vec<Vec<ImageInfo>> {
     for folder in glob(&images.join("*").to_string_lossy()).unwrap() {
         if let Ok(folder) = folder {
             let mut images = Vec::new();
-            for image in glob(
-                &folder.join(format!("*.{}", im_ext)).to_string_lossy()
-            ).unwrap() {
+            for image in
+                glob(&folder.join(format!("*.{}", im_ext)).to_string_lossy())
+                    .unwrap()
+            {
                 if let Ok(image) = image {
                     let image_dims = image_dimensions(&image);
                     if let Ok(image_dims) = image_dims {
@@ -88,7 +88,11 @@ fn find_images(images: &str, im_ext: &str) -> Vec<Vec<ImageInfo>> {
     paths
 }
 
-fn replace(io_string: &mut String, pat: &str, replace_with: &str) -> Result<(), ()> {
+fn replace(
+    io_string: &mut String,
+    pat: &str,
+    replace_with: &str,
+) -> Result<(), ()> {
     let pos = io_string.find(pat).ok_or(())?;
     io_string.replace_range(pos..(pos + pat.len()), replace_with);
     Ok(())
@@ -124,9 +128,11 @@ fn write_toplevel(
         }
     }
     replace(
-        &mut toplevel_text, "PHOTOTEX_PAGES_INCLUDE_PLACEHOLDER", &page_includes
-    ).unwrap();
-
+        &mut toplevel_text,
+        "PHOTOTEX_PAGES_INCLUDE_PLACEHOLDER",
+        &page_includes,
+    )
+    .unwrap();
 
     let top_file_name = "photobook.tex";
     let toplevel_file = Path::new(&out_folder).join(top_file_name);
@@ -137,8 +143,11 @@ fn write_toplevel(
     let makefile = Path::new(&out_folder).join("Makefile");
     let mut makefile_text = include_str!("../data/Makefile").to_string();
     replace(
-        &mut makefile_text, "PHOTOTEX_TOPLEVEL_FILE_NAME", top_file_name
-    ).unwrap();
+        &mut makefile_text,
+        "PHOTOTEX_TOPLEVEL_FILE_NAME",
+        top_file_name,
+    )
+    .unwrap();
     let f = std::fs::File::create(&makefile)?;
     let mut writer = std::io::BufWriter::new(f);
     write!(writer, "{}", makefile_text)?;
@@ -147,7 +156,7 @@ fn write_toplevel(
 
 fn write_pages(
     out_folder: &str,
-    images: &[Vec<ImageInfo>]
+    images: &[Vec<ImageInfo>],
 ) -> std::io::Result<Vec<PageInfo>> {
     let nb_images = images.iter().map(|v| v.len()).sum();
     let mut page_infos = Vec::with_capacity(nb_images);
@@ -155,34 +164,35 @@ fn write_pages(
         for (im0, im1) in im_group
             .iter()
             .filter(|im| im.dimensions.0 >= im.dimensions.1)
-            .tuples() {
+            .tuples()
+        {
             let page_id = page_infos.len();
-            let page_path = Path::new(&out_folder)
-                .join(format!("page{:03}", page_id));
+            let page_path =
+                Path::new(&out_folder).join(format!("page{:03}", page_id));
             std::fs::create_dir_all(&page_path)?;
             let page_path = page_path.join("page.tex");
             let f = std::fs::File::create(&page_path)?;
             let mut writer = std::io::BufWriter::new(f);
-            let mut page_text = include_str!("../data/page_2_landscapes.tex")
-                .to_string();
+            let mut page_text =
+                include_str!("../data/page_2_landscapes.tex").to_string();
             if let Some(im0_path) = im0.path.to_str() {
-                replace(
-                    &mut page_text, "PHOTOTEX_FIRST_IMAGE_PATH", im0_path,
-                ).unwrap();
+                replace(&mut page_text, "PHOTOTEX_FIRST_IMAGE_PATH", im0_path)
+                    .unwrap();
             } else {
                 log::error!(
                     "could not include image path {:?} in {:?}: utf-8 failed",
-                    im0.path, page_path,
+                    im0.path,
+                    page_path,
                 );
             }
             if let Some(im1_path) = im1.path.to_str() {
-                replace(
-                    &mut page_text, "PHOTOTEX_SECOND_IMAGE_PATH", im1_path,
-                ).unwrap();
+                replace(&mut page_text, "PHOTOTEX_SECOND_IMAGE_PATH", im1_path)
+                    .unwrap();
             } else {
                 log::error!(
                     "could not include image path {:?} in {:?}: utf-8 failed",
-                    im1.path, page_path,
+                    im1.path,
+                    page_path,
                 );
             }
             replace(&mut page_text, "PHOTOTEX_FIRST_LEGEND", "%").unwrap();
@@ -205,43 +215,40 @@ fn main() -> Result<(), Box<dyn Error>> {
         .about("Generates latex files for photo albums")
         .arg(
             clap::Arg::with_name("images")
-            .value_name("FOLDER")
-            .help("Path to the images selection folders")
-            .takes_value(true)
+                .value_name("FOLDER")
+                .help("Path to the images selection folders")
+                .takes_value(true),
         )
         .arg(
             clap::Arg::with_name("out_folder")
-            .short("-o")
-            .value_name("OUT_FOLDER")
-            .help("Path where the latex should be written. Defaults to .")
-            .takes_value(true)
+                .short("-o")
+                .value_name("OUT_FOLDER")
+                .help("Path where the latex should be written. Defaults to .")
+                .takes_value(true),
         )
         .arg(
             clap::Arg::with_name("im_ext")
-            .long("--image_ext")
-            .value_name("IMAGE_EXT")
-            .help("Extension of images files. Defaults to 'jpg'")
-            .takes_value(true)
+                .long("--image_ext")
+                .value_name("IMAGE_EXT")
+                .help("Extension of images files. Defaults to 'jpg'")
+                .takes_value(true),
         )
-        .arg(clap::Arg::with_name("verbosity")
-             .short("v")
-             .multiple(true)
-             .help("Increase message verbosity"))
+        .arg(
+            clap::Arg::with_name("verbosity")
+                .short("v")
+                .multiple(true)
+                .help("Increase message verbosity"),
+        )
         .get_matches();
 
     let verbosity = matches.occurrences_of("verbosity") as usize;
 
-    stderrlog::new()
-        .verbosity(verbosity + 1)
-        .init()
-        .unwrap();
+    stderrlog::new().verbosity(verbosity + 1).init().unwrap();
 
-    let images = matches
-        .value_of("images")
-        .unwrap_or_else(|| {
-            println!("{}", matches.usage());
-            std::process::exit(1);
-        });
+    let images = matches.value_of("images").unwrap_or_else(|| {
+        println!("{}", matches.usage());
+        std::process::exit(1);
+    });
 
     let out_folder = matches.value_of("out_folder").unwrap_or(".");
 
@@ -252,7 +259,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let im_infos = find_images(images, im_ext);
 
     let page_infos = write_pages(out_folder, &im_infos)?;
-    let book_info = BookInfo { title: "Titre".to_string() };
+    let book_info = BookInfo {
+        title: "Titre".to_string(),
+    };
     write_toplevel(out_folder, &book_info, &page_infos)?;
     Ok(())
 }
