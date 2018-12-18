@@ -2,7 +2,7 @@ use glob::glob;
 use image::{ImageDecoder, ImageResult};
 use itertools::Itertools;
 use std::error::Error;
-use std::io::Write;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 struct ImageInfo {
@@ -121,7 +121,7 @@ fn write_toplevel(
     replace(&mut toplevel_text, "PHOTOTEX_TITLE", &book_info.title).unwrap();
     let mut page_includes = String::new();
     for page in page_infos {
-        if let Some(path) = page.path.to_str() {
+        if let Some(path) = page.path.canonicalize()?.to_str() {
             page_includes.push_str(&format!("\\input{{{}}}\n", path));
         } else {
             log::error!("could not include page {:?}", page.path);
@@ -175,7 +175,17 @@ fn write_pages(
             let mut writer = std::io::BufWriter::new(f);
             let mut page_text =
                 include_str!("../data/page_2_landscapes.tex").to_string();
-            if let Some(im0_path) = im0.path.to_str() {
+            if let Some(im0_path) = im0.path.canonicalize()?.to_str() {
+                if im0_path.contains(" ") {
+                    log::error!(
+                        "image path should not contain a space: {:?}",
+                        im0_path,
+                    );
+                    return Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        "path with string",
+                    ));
+                }
                 replace(&mut page_text, "PHOTOTEX_FIRST_IMAGE_PATH", im0_path)
                     .unwrap();
             } else {
@@ -185,7 +195,17 @@ fn write_pages(
                     page_path,
                 );
             }
-            if let Some(im1_path) = im1.path.to_str() {
+            if let Some(im1_path) = im1.path.canonicalize()?.to_str() {
+                if im1_path.contains(" ") {
+                    log::error!(
+                        "image path should not contain a space: {:?}",
+                        im1_path,
+                    );
+                    return Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        "path with string",
+                    ));
+                }
                 replace(&mut page_text, "PHOTOTEX_SECOND_IMAGE_PATH", im1_path)
                     .unwrap();
             } else {
