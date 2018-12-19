@@ -61,6 +61,13 @@ fn find_images(images: &str, im_ext: &str) -> Vec<Vec<ImageInfo>> {
                     .unwrap()
             {
                 if let Ok(image) = image {
+                    if image.to_string_lossy().contains(" ") {
+                        log::error!(
+                            "path should not contain a space: {:?}",
+                            image,
+                        );
+                        std::process::exit(1);
+                    }
                     let image_dims = image_dimensions(&image);
                     if let Ok(image_dims) = image_dims {
                         log::info!(
@@ -176,16 +183,6 @@ fn write_pages(
             let mut page_text =
                 include_str!("../data/page_2_landscapes.tex").to_string();
             if let Some(im0_path) = im0.path.canonicalize()?.to_str() {
-                if im0_path.contains(" ") {
-                    log::error!(
-                        "image path should not contain a space: {:?}",
-                        im0_path,
-                    );
-                    return Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        "path with string",
-                    ));
-                }
                 replace(&mut page_text, "PHOTOTEX_FIRST_IMAGE_PATH", im0_path)
                     .unwrap();
             } else {
@@ -196,16 +193,6 @@ fn write_pages(
                 );
             }
             if let Some(im1_path) = im1.path.canonicalize()?.to_str() {
-                if im1_path.contains(" ") {
-                    log::error!(
-                        "image path should not contain a space: {:?}",
-                        im1_path,
-                    );
-                    return Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        "path with string",
-                    ));
-                }
                 replace(&mut page_text, "PHOTOTEX_SECOND_IMAGE_PATH", im1_path)
                     .unwrap();
             } else {
