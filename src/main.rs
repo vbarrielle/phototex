@@ -49,6 +49,35 @@ fn image_dimensions(path: &Path) -> ImageResult<(u32, u32)> {
     }
 }
 
+fn compute_good_dimensions(
+    in_dims: (u32, u32),
+    (page_width, page_height): (f32, f32), // in mm
+    dpm: f32, // dots per mm
+) -> (u32, u32) {
+    // we need to have 300 dpi ie 12 dots per mm
+    let (target_width, target_height) = (page_width * dpm, page_height * dpm);
+    let (in_w, in_h) = (in_dims.0 as f32, in_dims.1 as f32);
+    let width_factor = target_width / in_w;
+    let height_factor = target_height / in_h;
+    let factor = width_factor.min(height_factor);
+    if factor > 1. {
+        log::warn!(
+            "image of resolution {}x{} is too small for dpm {}",
+            in_dims.0, in_dims.1, dpm,
+        );
+        return in_dims;
+    }
+    let mut ideal_w = (in_w * factor).floor() as u32;
+    let mut ideal_h = (in_h * factor).floor() as u32;
+    if ideal_w % 4 != 0 {
+        ideal_w += 4 - (ideal_w % 4);
+    }
+    if ideal_h % 4 != 0 {
+        ideal_h += 4 - (ideal_h % 4);
+    }
+    (ideal_w, ideal_h)
+}
+
 fn find_images(images: &str, im_ext: &str) -> Vec<Vec<ImageInfo>> {
     let images = Path::new(&images);
     // unwraping on pattern because a bad pattern is a programming error here
@@ -271,4 +300,19 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
     write_toplevel(out_folder, &book_info, &page_infos)?;
     Ok(())
+}
+
+mod test {
+    #[test]
+    fn compute_good_dimensions() {
+        let (ideal_w, ideal_h) = super::compute_good_dimensions(
+            (5184, 3456),
+            (210., 297.),
+            12.,
+        );
+        assert!(ideal_w % 4 == 0);
+        assert!(ideal_h % 4 == 0);
+        assert!(ideal_w < 5184);
+        assert!(ideal_h < 3456);
+    }
 }
