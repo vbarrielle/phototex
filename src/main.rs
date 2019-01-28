@@ -1,8 +1,8 @@
 use glob::glob;
-use image::{ImageDecoder, ImageResult};
+use image::{ImageDecoder, ImageResult, GenericImageView};
 use itertools::Itertools;
 use std::error::Error;
-use std::io::{self, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 struct ImageInfo {
@@ -124,6 +124,50 @@ fn find_images(images: &str, im_ext: &str) -> Vec<Vec<ImageInfo>> {
     paths
 }
 
+fn resize_images(
+    im_infos: Vec<Vec<ImageInfo>>,
+    dpm: f32,
+    page_dims: (f32, f32),
+    images_path: &Path,
+) -> Vec<Vec<ImageInfo>> {
+    let mut res = Vec::with_capacity(im_infos.len());
+    for im_folder in &im_infos {
+        res.push(Vec::with_capacity(im_folder.len()));
+        let cur_folder = res.last_mut().unwrap();
+        for im_info in im_folder {
+            let ideal_dims = compute_good_dimensions(
+                im_info.dimensions,
+                page_dims,
+                dpm,
+            );
+            let im_path = &im_info.path;
+            if let Ok(im) = image::open(im_path) {
+                log::info!("resizing {:?}", im_path);
+                let im = im.resize(
+                    ideal_dims.0, ideal_dims.1, image::FilterType::CatmullRom,
+                );
+                // should not have a bad path at this point: ImageInfo is trusted
+                let resized_path = images_path.join(im_path.file_name().unwrap());
+                // not managing to save a resized image is a hard error:
+                // folder should be writable
+                if let Err(error) = im.save(&resized_path) {
+                    log::error!("Could not save image at {:?}", resized_path);
+                    std::process::exit(1);
+                }
+                cur_folder.push(
+                    ImageInfo {
+                        dimensions: im.dimensions(),
+                        path: resized_path,
+                    }
+                );
+            } else {
+                log::warn!("Could not load image {:?}", im_info.path);
+            }
+        }
+    }
+    res
+}
+
 fn replace(
     io_string: &mut String,
     pat: &str,
@@ -149,7 +193,7 @@ struct PageInfo {
 }
 
 fn write_toplevel(
-    out_folder: &str,
+    out_folder: &Path,
     book_info: &BookInfo,
     page_infos: &[PageInfo],
 ) -> std::io::Result<()> {
@@ -171,12 +215,12 @@ fn write_toplevel(
     .unwrap();
 
     let top_file_name = "photobook.tex";
-    let toplevel_file = Path::new(&out_folder).join(top_file_name);
+    let toplevel_file = out_folder.join(top_file_name);
     let f = std::fs::File::create(&toplevel_file)?;
     let mut writer = std::io::BufWriter::new(f);
     write!(writer, "{}", toplevel_text)?;
 
-    let makefile = Path::new(&out_folder).join("Makefile");
+    let makefile = out_folder.join("Makefile");
     let mut makefile_text = include_str!("../data/Makefile").to_string();
     replace(
         &mut makefile_text,
@@ -191,7 +235,7 @@ fn write_toplevel(
 }
 
 fn write_pages(
-    out_folder: &str,
+    out_folder: &Path,
     images: &[Vec<ImageInfo>],
 ) -> std::io::Result<Vec<PageInfo>> {
     let nb_images = images.iter().map(|v| v.len()).sum();
@@ -203,8 +247,7 @@ fn write_pages(
             .tuples()
         {
             let page_id = page_infos.len();
-            let page_path =
-                Path::new(&out_folder).join(format!("page{:03}", page_id));
+            let page_path = out_folder.join(format!("page{:03}", page_id));
             std::fs::create_dir_all(&page_path)?;
             let page_path = page_path.join("page.tex");
             let f = std::fs::File::create(&page_path)?;
@@ -270,6 +313,20 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .takes_value(true),
         )
         .arg(
+            clap::Arg::with_name("dpm")
+                .long("--dpm")
+                .value_name("DOTS_PER_MM")
+                .help("Desired print definition. Defaults to 12dpm (300dpi).")
+                .takes_value(true),
+        )
+        .arg(
+            clap::Arg::with_name("page_format")
+                .long("--page-format")
+                .value_name("PAGE FORMAT")
+                .help("Page format. Defaults to A4.")
+                .takes_value(true),
+        )
+        .arg(
             clap::Arg::with_name("verbosity")
                 .short("v")
                 .multiple(true)
@@ -286,13 +343,32 @@ fn main() -> Result<(), Box<dyn Error>> {
         std::process::exit(1);
     });
 
-    let out_folder = matches.value_of("out_folder").unwrap_or(".");
+    let out_folder = Path::new(matches.value_of("out_folder").unwrap_or("."));
 
     let im_ext = matches.value_of("im_ext").unwrap_or("jpg");
+
+    let dpm = matches.value_of("dpm").unwrap_or("12.").parse()?;
+
+    let page_format = matches.value_of("page_format").unwrap_or("A4");
 
     log::info!("Using images path: {}", images);
 
     let im_infos = find_images(images, im_ext);
+    let page_dims = match page_format {
+        "A4" => (21., 29.7),
+        _ => {
+            log::error!("unsupported page format {}", page_format);
+            std::process::exit(1);
+        },
+    };
+    let images_path = out_folder.join("images");
+    std::fs::create_dir_all(&images_path)?;
+    let im_infos = resize_images(
+        im_infos,
+        dpm,
+        page_dims,
+        &images_path,
+    );
 
     let page_infos = write_pages(out_folder, &im_infos)?;
     let book_info = BookInfo {
