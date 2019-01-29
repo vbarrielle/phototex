@@ -21,32 +21,32 @@ fn image_dimensions(path: &Path) -> ImageResult<(u32, u32)> {
 
     match &ext[..] {
         //#[cfg(feature = "jpeg")]
-        "jpg" | "jpeg" => image::jpeg::JPEGDecoder::new(fin).dimensions(),
+        "jpg" | "jpeg" => Ok(image::jpeg::JPEGDecoder::new(fin)?.dimensions()),
         //#[cfg(feature = "png_codec")]
-        "png" => image::png::PNGDecoder::new(fin).dimensions(),
+        "png" => Ok(image::png::PNGDecoder::new(fin)?.dimensions()),
         //#[cfg(feature = "gif_codec")]
-        "gif" => image::gif::Decoder::new(fin).dimensions(),
+        "gif" => Ok(image::gif::Decoder::new(fin)?.dimensions()),
         //#[cfg(feature = "webp")]
-        "webp" => image::webp::WebpDecoder::new(fin).dimensions(),
+        "webp" => Ok(image::webp::WebpDecoder::new(fin)?.dimensions()),
         //#[cfg(feature = "tiff")]
-        "tif" | "tiff" => image::tiff::TIFFDecoder::new(fin)?.dimensions(),
+        "tif" | "tiff" => Ok(image::tiff::TIFFDecoder::new(fin)?.dimensions()),
         //#[cfg(feature = "tga")]
-        "tga" => image::tga::TGADecoder::new(fin).dimensions(),
+        "tga" => Ok(image::tga::TGADecoder::new(fin)?.dimensions()),
         //#[cfg(feature = "bmp")]
-        "bmp" => image::bmp::BMPDecoder::new(fin).dimensions(),
+        "bmp" => Ok(image::bmp::BMPDecoder::new(fin)?.dimensions()),
         //#[cfg(feature = "ico")]
-        "ico" => image::ico::ICODecoder::new(fin)?.dimensions(),
+        "ico" => Ok(image::ico::ICODecoder::new(fin)?.dimensions()),
         //#[cfg(feature = "hdr")]
-        "hdr" => image::hdr::HDRAdapter::new(fin)?.dimensions(),
+        "hdr" => Ok(image::hdr::HDRAdapter::new(fin)?.dimensions()),
         //#[cfg(feature = "pnm")]
         "pbm" | "pam" | "ppm" | "pgm" => {
-            image::pnm::PNMDecoder::new(fin)?.dimensions()
+            Ok(image::pnm::PNMDecoder::new(fin)?.dimensions())
         }
         format => Err(image::ImageError::UnsupportedError(format!(
             "Image format image/{:?} is not supported.",
             format
         ))),
-    }
+    }.map(|(w, h)| (w as u32, h as u32)) // TODO panic on overflow
 }
 
 fn compute_good_dimensions(
