@@ -129,11 +129,13 @@ fn resize_images(
     dpm: f32,
     page_dims: (f32, f32),
     images_path: &Path,
-) -> Vec<Vec<ImageInfo>> {
+) -> Result<Vec<Vec<ImageInfo>>, Box<dyn Error>> {
     let mut res = Vec::with_capacity(im_infos.len());
-    for im_folder in &im_infos {
+    for (ind, im_folder) in im_infos.iter().enumerate() {
         res.push(Vec::with_capacity(im_folder.len()));
         let cur_folder = res.last_mut().unwrap();
+        let folder_path = images_path.join(format!("section_{:02}", ind));
+        std::fs::create_dir_all(&folder_path)?;
         for im_info in im_folder {
             let ideal_dims = compute_good_dimensions(
                 im_info.dimensions,
@@ -141,31 +143,23 @@ fn resize_images(
                 dpm,
             );
             let im_path = &im_info.path;
-            if let Ok(im) = image::open(im_path) {
-                log::info!("resizing {:?}", im_path);
-                let im = im.resize(
-                    ideal_dims.0, ideal_dims.1, image::FilterType::CatmullRom,
-                );
-                // should not have a bad path at this point: ImageInfo is trusted
-                let resized_path = images_path.join(im_path.file_name().unwrap());
-                // not managing to save a resized image is a hard error:
-                // folder should be writable
-                if let Err(error) = im.save(&resized_path) {
-                    log::error!("Could not save image at {:?}", resized_path);
-                    std::process::exit(1);
+            let im = image::open(im_path)?;
+            log::info!("resizing {:?}", im_path);
+            let im = im.resize(
+                ideal_dims.0, ideal_dims.1, image::FilterType::CatmullRom,
+            );
+            // should not have a bad path at this point: ImageInfo is trusted
+            let resized_path = folder_path.join(im_path.file_name().unwrap());
+            im.save(&resized_path)?;
+            cur_folder.push(
+                ImageInfo {
+                    dimensions: im.dimensions(),
+                    path: resized_path,
                 }
-                cur_folder.push(
-                    ImageInfo {
-                        dimensions: im.dimensions(),
-                        path: resized_path,
-                    }
-                );
-            } else {
-                log::warn!("Could not load image {:?}", im_info.path);
-            }
+            );
         }
     }
-    res
+    Ok(res)
 }
 
 fn replace(
@@ -355,7 +349,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let im_infos = find_images(images, im_ext);
     let page_dims = match page_format {
-        "A4" => (21., 29.7),
+        "A4" => (210., 297.),
         _ => {
             log::error!("unsupported page format {}", page_format);
             std::process::exit(1);
@@ -368,7 +362,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         dpm,
         page_dims,
         &images_path,
-    );
+    )?;
 
     let page_infos = write_pages(out_folder, &im_infos)?;
     let book_info = BookInfo {
