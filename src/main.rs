@@ -1,5 +1,5 @@
 use glob::glob;
-use image::{ImageDecoder, ImageResult, GenericImageView};
+use image::{ImageDecoder, ImageResult, GenericImageView, ImageOutputFormat};
 use itertools::Itertools;
 use std::error::Error;
 use std::io::Write;
@@ -146,11 +146,14 @@ fn resize_images(
             let im = image::open(im_path)?;
             log::info!("resizing {:?}", im_path);
             let im = im.resize(
-                ideal_dims.0, ideal_dims.1, image::FilterType::CatmullRom,
+                ideal_dims.0, ideal_dims.1, image::FilterType::Gaussian,
             );
             // should not have a bad path at this point: ImageInfo is trusted
             let resized_path = folder_path.join(im_path.file_name().unwrap());
-            im.save(&resized_path)?;
+            let mut out_file = std::io::BufWriter::new(
+                std::fs::File::create(&resized_path)?
+            );
+            im.write_to(&mut out_file, ImageOutputFormat::JPEG(90))?;
             cur_folder.push(
                 ImageInfo {
                     dimensions: im.dimensions(),
