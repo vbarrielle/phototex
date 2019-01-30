@@ -1,5 +1,6 @@
 use glob::glob;
 use image::{ImageDecoder, ImageResult, ImageOutputFormat};
+use rayon::prelude::*;
 use itertools::Itertools;
 use std::error::Error;
 use std::io::Write;
@@ -150,19 +151,20 @@ fn resize_images(
                 }
             );
         }
-        for (source_info, target_info) in im_folder.iter().zip(&cur_folder) {
-            let im_path = &source_info.path;
-            let resized_path = &target_info.path;
+        im_folder.par_iter().zip(&cur_folder).map(|(source, target)| {
+            let im_path = &source.path;
+            let resized_path = &target.path;
             let im = image::open(im_path)?;
             log::info!("resizing {:?}", im_path);
-            let (w, h) = target_info.dimensions;
+            let (w, h) = target.dimensions;
             let im = im.resize(w, h, image::FilterType::Gaussian);
             // should not have a bad path at this point: ImageInfo is trusted
             let mut out_file = std::io::BufWriter::new(
                 std::fs::File::create(&resized_path)?
             );
             im.write_to(&mut out_file, ImageOutputFormat::JPEG(90))?;
-        }
+            Ok(())
+        }).collect::<ImageResult<()>>()?;
         res.push(cur_folder);
     }
     Ok(res)
