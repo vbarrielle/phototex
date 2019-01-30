@@ -1,5 +1,5 @@
 use glob::glob;
-use image::{ImageDecoder, ImageResult, GenericImageView, ImageOutputFormat};
+use image::{ImageDecoder, ImageResult, ImageOutputFormat};
 use itertools::Itertools;
 use std::error::Error;
 use std::io::Write;
@@ -132,8 +132,7 @@ fn resize_images(
 ) -> Result<Vec<Vec<ImageInfo>>, Box<dyn Error>> {
     let mut res = Vec::with_capacity(im_infos.len());
     for (ind, im_folder) in im_infos.iter().enumerate() {
-        res.push(Vec::with_capacity(im_folder.len()));
-        let cur_folder = res.last_mut().unwrap();
+        let mut cur_folder = Vec::with_capacity(im_folder.len());
         let folder_path = images_path.join(format!("section_{:02}", ind));
         std::fs::create_dir_all(&folder_path)?;
         for im_info in im_folder {
@@ -143,24 +142,28 @@ fn resize_images(
                 dpm,
             );
             let im_path = &im_info.path;
-            let im = image::open(im_path)?;
-            log::info!("resizing {:?}", im_path);
-            let im = im.resize(
-                ideal_dims.0, ideal_dims.1, image::FilterType::Gaussian,
-            );
-            // should not have a bad path at this point: ImageInfo is trusted
             let resized_path = folder_path.join(im_path.file_name().unwrap());
-            let mut out_file = std::io::BufWriter::new(
-                std::fs::File::create(&resized_path)?
-            );
-            im.write_to(&mut out_file, ImageOutputFormat::JPEG(90))?;
             cur_folder.push(
                 ImageInfo {
-                    dimensions: im.dimensions(),
+                    dimensions: ideal_dims,
                     path: resized_path,
                 }
             );
         }
+        for (source_info, target_info) in im_folder.iter().zip(&cur_folder) {
+            let im_path = &source_info.path;
+            let resized_path = &target_info.path;
+            let im = image::open(im_path)?;
+            log::info!("resizing {:?}", im_path);
+            let (w, h) = target_info.dimensions;
+            let im = im.resize(w, h, image::FilterType::Gaussian);
+            // should not have a bad path at this point: ImageInfo is trusted
+            let mut out_file = std::io::BufWriter::new(
+                std::fs::File::create(&resized_path)?
+            );
+            im.write_to(&mut out_file, ImageOutputFormat::JPEG(90))?;
+        }
+        res.push(cur_folder);
     }
     Ok(res)
 }
