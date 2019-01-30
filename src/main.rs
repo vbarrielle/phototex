@@ -1,7 +1,7 @@
 use glob::glob;
-use image::{ImageDecoder, ImageResult, ImageOutputFormat};
-use rayon::prelude::*;
+use image::{ImageDecoder, ImageOutputFormat, ImageResult};
 use itertools::Itertools;
+use rayon::prelude::*;
 use std::error::Error;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -47,13 +47,14 @@ fn image_dimensions(path: &Path) -> ImageResult<(u32, u32)> {
             "Image format image/{:?} is not supported.",
             format
         ))),
-    }.map(|(w, h)| (w as u32, h as u32)) // TODO panic on overflow
+    }
+    .map(|(w, h)| (w as u32, h as u32)) // TODO panic on overflow
 }
 
 fn compute_good_dimensions(
     in_dims: (u32, u32),
     (page_width, page_height): (f32, f32), // in mm
-    dpm: f32, // dots per mm
+    dpm: f32,                              // dots per mm
 ) -> (u32, u32) {
     // we need to have 300 dpi ie 12 dots per mm
     let (target_width, target_height) = (page_width * dpm, page_height * dpm);
@@ -64,7 +65,9 @@ fn compute_good_dimensions(
     if factor > 1. {
         log::warn!(
             "image of resolution {}x{} is too small for dpm {}",
-            in_dims.0, in_dims.1, dpm,
+            in_dims.0,
+            in_dims.1,
+            dpm,
         );
         return in_dims;
     }
@@ -137,45 +140,49 @@ fn resize_images(
         let folder_path = images_path.join(format!("section_{:02}", ind));
         std::fs::create_dir_all(&folder_path)?;
         for im_info in im_folder {
-            let ideal_dims = compute_good_dimensions(
-                im_info.dimensions,
-                page_dims,
-                dpm,
-            );
+            let ideal_dims =
+                compute_good_dimensions(im_info.dimensions, page_dims, dpm);
             let im_path = &im_info.path;
             let resized_path = folder_path.join(im_path.file_name().unwrap());
-            cur_folder.push(
-                ImageInfo {
-                    dimensions: ideal_dims,
-                    path: resized_path,
-                }
-            );
+            cur_folder.push(ImageInfo {
+                dimensions: ideal_dims,
+                path: resized_path,
+            });
         }
-        im_folder.par_iter().zip(&cur_folder).map(|(source, target)| {
-            let im_path = &source.path;
-            let resized_path = &target.path;
+        im_folder
+            .par_iter()
+            .zip(&cur_folder)
+            .map(|(source, target)| {
+                let im_path = &source.path;
+                let resized_path = &target.path;
 
-            // early check if resizing is necessary
-            let in_mtime = std::fs::metadata(im_path).and_then(|x| x.modified());
-            let out_mtime = std::fs::metadata(resized_path).and_then(|x| x.modified());
-            if let (Ok(in_mtime), Ok(out_mtime)) = (in_mtime, out_mtime) {
-                if in_mtime <= out_mtime {
-                    log::info!("no need to resize {:?}, up to date", im_path);
-                    return Ok(());
+                // early check if resizing is necessary
+                let in_mtime =
+                    std::fs::metadata(im_path).and_then(|x| x.modified());
+                let out_mtime =
+                    std::fs::metadata(resized_path).and_then(|x| x.modified());
+                if let (Ok(in_mtime), Ok(out_mtime)) = (in_mtime, out_mtime) {
+                    if in_mtime <= out_mtime {
+                        log::info!(
+                            "no need to resize {:?}, up to date",
+                            im_path
+                        );
+                        return Ok(());
+                    }
                 }
-            }
 
-            let im = image::open(im_path)?;
-            log::info!("resizing {:?}", im_path);
-            let (w, h) = target.dimensions;
-            let im = im.resize(w, h, image::FilterType::Gaussian);
-            // should not have a bad path at this point: ImageInfo is trusted
-            let mut out_file = std::io::BufWriter::new(
-                std::fs::File::create(&resized_path)?
-            );
-            im.write_to(&mut out_file, ImageOutputFormat::JPEG(90))?;
-            Ok(())
-        }).collect::<ImageResult<()>>()?;
+                let im = image::open(im_path)?;
+                log::info!("resizing {:?}", im_path);
+                let (w, h) = target.dimensions;
+                let im = im.resize(w, h, image::FilterType::Gaussian);
+                // should not have a bad path at this point: ImageInfo is trusted
+                let mut out_file = std::io::BufWriter::new(
+                    std::fs::File::create(&resized_path)?,
+                );
+                im.write_to(&mut out_file, ImageOutputFormat::JPEG(90))?;
+                Ok(())
+            })
+            .collect::<ImageResult<()>>()?;
         res.push(cur_folder);
     }
     Ok(res)
@@ -365,7 +372,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let page_format = matches.value_of("page_format").unwrap_or("A4");
     let nb_cpus = num_cpus::get_physical();
     log::info!("resizing will be parallelized on {} threads", nb_cpus);
-    rayon::ThreadPoolBuilder::new().num_threads(nb_cpus).build_global().unwrap();
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(nb_cpus)
+        .build_global()
+        .unwrap();
 
     log::info!("Using images path: {}", images);
 
@@ -375,16 +385,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         _ => {
             log::error!("unsupported page format {}", page_format);
             std::process::exit(1);
-        },
+        }
     };
     let images_path = out_folder.join("images");
     std::fs::create_dir_all(&images_path)?;
-    let im_infos = resize_images(
-        im_infos,
-        dpm,
-        page_dims,
-        &images_path,
-    )?;
+    let im_infos = resize_images(im_infos, dpm, page_dims, &images_path)?;
 
     let page_infos = write_pages(out_folder, &im_infos)?;
     let book_info = BookInfo {
@@ -397,11 +402,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 mod test {
     #[test]
     fn compute_good_dimensions() {
-        let (ideal_w, ideal_h) = super::compute_good_dimensions(
-            (5184, 3456),
-            (210., 297.),
-            12.,
-        );
+        let (ideal_w, ideal_h) =
+            super::compute_good_dimensions((5184, 3456), (210., 297.), 12.);
         assert!(ideal_w % 4 == 0);
         assert!(ideal_h % 4 == 0);
         assert!(ideal_w < 5184);
