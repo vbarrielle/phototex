@@ -154,6 +154,17 @@ fn resize_images(
         im_folder.par_iter().zip(&cur_folder).map(|(source, target)| {
             let im_path = &source.path;
             let resized_path = &target.path;
+
+            // early check if resizing is necessary
+            let in_mtime = std::fs::metadata(im_path).and_then(|x| x.modified());
+            let out_mtime = std::fs::metadata(resized_path).and_then(|x| x.modified());
+            if let (Ok(in_mtime), Ok(out_mtime)) = (in_mtime, out_mtime) {
+                if in_mtime <= out_mtime {
+                    log::info!("no need to resize {:?}, up to date", im_path);
+                    return Ok(());
+                }
+            }
+
             let im = image::open(im_path)?;
             log::info!("resizing {:?}", im_path);
             let (w, h) = target.dimensions;
