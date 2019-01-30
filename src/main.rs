@@ -352,6 +352,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let dpm = matches.value_of("dpm").unwrap_or("12.").parse()?;
 
     let page_format = matches.value_of("page_format").unwrap_or("A4");
+    let nb_cpus = num_cpus::get_physical();
+    log::info!("resizing will be parallelized on {} threads", nb_cpus);
+    rayon::ThreadPoolBuilder::new().num_threads(nb_cpus).build_global().unwrap();
 
     log::info!("Using images path: {}", images);
 
