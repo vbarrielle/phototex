@@ -14,7 +14,8 @@ struct SourceImageInfo {
 
 struct ImageInfo {
     path: PathBuf,
-    dimensions: (u32, u32),
+    resize_dims: (u32, u32),
+    rotated_dims: (u32, u32),
 }
 
 #[derive(Copy, Clone)]
@@ -202,9 +203,16 @@ fn resize_images(
                 compute_good_dimensions(im_info.dimensions, page_dims, dpm);
             let im_path = &im_info.path;
             let resized_path = folder_path.join(im_path.file_name().unwrap());
+            let rotated_dims = match im_info.orientation {
+                Orientation::Rotate90 | Orientation::Rotate270 => {
+                    (ideal_dims.1, ideal_dims.0)
+                },
+                _ => ideal_dims,
+            }
             cur_folder.push(ImageInfo {
-                dimensions: ideal_dims,
+                resize_dims: ideal_dims,
                 path: resized_path,
+                rotated_dims,
             });
         }
         im_folder
@@ -231,7 +239,7 @@ fn resize_images(
 
                 let im = image::open(im_path)?;
                 log::info!("resizing {:?}", im_path);
-                let (w, h) = target.dimensions;
+                let (w, h) = target.resize_dims;
                 let im = im.resize(w, h, image::FilterType::Gaussian);
                 let im = match source.orientation {
                     Orientation::Rotate90 => {
