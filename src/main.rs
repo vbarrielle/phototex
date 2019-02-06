@@ -6,9 +6,65 @@ use std::error::Error;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+struct SourceImageInfo {
+    path: PathBuf,
+    dimensions: (u32, u32),
+    orientation: Orientation,
+}
+
 struct ImageInfo {
     path: PathBuf,
     dimensions: (u32, u32),
+}
+
+#[derive(Copy, Clone)]
+enum Orientation {
+    // Rotations are clockwise to match image crate
+    Rotate90,
+    Rotate270,
+    Rotate180,
+    Keep,
+    Unknown,
+    Flipped,
+}
+
+fn image_exif_orientation(path: &Path) -> Orientation {
+    let thumbnail = false;
+    let mut fin = std::fs::File::open(path)
+        .map(std::io::BufReader::new)
+        .ok();
+    let reader = fin
+        .as_mut()
+        .ok_or(exif::Error::BlankValue("dummy"))
+        .and_then(exif::Reader::new)
+        .ok();
+    let orientation = reader
+        .as_ref()
+        .and_then(|r| r.get_field(exif::Tag::Orientation, thumbnail));
+    if let Some(orientation) = orientation {
+        match &orientation.value {
+            exif::Value::Short(vals) => {
+                if vals.len() == 1 {
+                    match vals[0] {
+                        1 => Orientation::Keep,
+                        3 => Orientation::Rotate180,
+                        6 => Orientation::Rotate90,
+                        8 => Orientation::Rotate270,
+                        _ => Orientation::Flipped,
+                    }
+                } else {
+                    Orientation::Unknown
+                }
+            },
+            _ => {
+                log::info!("Unknown orientation for {:?}", path);
+                Orientation::Unknown
+            },
+        }
+    } else {
+        log::info!("Unknown orientation for {:?}", path);
+        Orientation::Unknown
+    }
 }
 
 fn image_dimensions(path: &Path) -> ImageResult<(u32, u32)> {
@@ -82,7 +138,7 @@ fn compute_good_dimensions(
     (ideal_w, ideal_h)
 }
 
-fn find_images(images: &str, im_ext: &str) -> Vec<Vec<ImageInfo>> {
+fn find_images(images: &str, im_ext: &str) -> Vec<Vec<SourceImageInfo>> {
     let images = Path::new(&images);
     // unwraping on pattern because a bad pattern is a programming error here
     let mut paths = Vec::new();
@@ -102,6 +158,7 @@ fn find_images(images: &str, im_ext: &str) -> Vec<Vec<ImageInfo>> {
                         std::process::exit(1);
                     }
                     let image_dims = image_dimensions(&image);
+                    let orientation = image_exif_orientation(&image);
                     if let Ok(image_dims) = image_dims {
                         log::info!(
                             "Including image {:?} ({}x{})",
@@ -109,9 +166,10 @@ fn find_images(images: &str, im_ext: &str) -> Vec<Vec<ImageInfo>> {
                             image_dims.0,
                             image_dims.1,
                         );
-                        images.push(ImageInfo {
+                        images.push(SourceImageInfo {
                             path: image,
                             dimensions: image_dims,
+                            orientation: orientation,
                         });
                     } else {
                         log::warn!("Could not open image {:?}", image);
@@ -129,7 +187,7 @@ fn find_images(images: &str, im_ext: &str) -> Vec<Vec<ImageInfo>> {
 }
 
 fn resize_images(
-    im_infos: Vec<Vec<ImageInfo>>,
+    im_infos: Vec<Vec<SourceImageInfo>>,
     dpm: f32,
     page_dims: (f32, f32),
     images_path: &Path,
@@ -175,7 +233,29 @@ fn resize_images(
                 log::info!("resizing {:?}", im_path);
                 let (w, h) = target.dimensions;
                 let im = im.resize(w, h, image::FilterType::Gaussian);
-                // should not have a bad path at this point: ImageInfo is trusted
+                let im = match source.orientation {
+                    Orientation::Rotate90 => {
+                        im.rotate90()
+                    },
+                    Orientation::Rotate180 => {
+                        im.rotate180()
+                    },
+                    Orientation::Rotate270 => {
+                        im.rotate270()
+                    },
+                    Orientation::Flipped => {
+                        log::info!(
+                            "Refusing to modify flipped image {:?}",
+                            im_path,
+                        );
+                        im
+                    }
+                    _ => {
+                        im
+                    }
+                };
+                // should not have a bad path at this point: SourceImageInfo
+                // is trusted
                 let mut out_file = std::io::BufWriter::new(
                     std::fs::File::create(&resized_path)?,
                 );

@@ -14,3 +14,4 @@ image = "0.21.0"
 itertools = "0.8.0"
 rayon = "1.0.3"
 num_cpus = "1.9.0"
+exif = { package = "kamadak-exif", version = "0.3.1" }
