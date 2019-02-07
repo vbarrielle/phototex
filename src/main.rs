@@ -384,8 +384,7 @@ fn write_one_portrait(
     let page_path = page_path.join("page.tex");
     let f = std::fs::File::create(&page_path)?;
     let mut writer = std::io::BufWriter::new(f);
-    let mut page_text =
-        include_str!("../data/page_1_portrait.tex").to_string();
+    let mut page_text = include_str!("../data/page_1_portrait.tex").to_string();
     if let Some(im_path) = im_info.path.canonicalize()?.to_str() {
         replace(&mut page_text, "PHOTOTEX_IMAGE_PATH", im_path).unwrap();
     } else {
