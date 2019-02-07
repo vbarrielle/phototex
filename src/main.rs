@@ -31,9 +31,7 @@ enum Orientation {
 
 fn image_exif_orientation(path: &Path) -> Orientation {
     let thumbnail = false;
-    let mut fin = std::fs::File::open(path)
-        .map(std::io::BufReader::new)
-        .ok();
+    let mut fin = std::fs::File::open(path).map(std::io::BufReader::new).ok();
     let reader = fin
         .as_mut()
         .ok_or(exif::Error::BlankValue("dummy"))
@@ -56,11 +54,11 @@ fn image_exif_orientation(path: &Path) -> Orientation {
                 } else {
                     Orientation::Unknown
                 }
-            },
+            }
             _ => {
                 log::info!("Unknown orientation for {:?}", path);
                 Orientation::Unknown
-            },
+            }
         }
     } else {
         log::info!("Unknown orientation for {:?}", path);
@@ -206,7 +204,7 @@ fn resize_images(
             let rotated_dims = match im_info.orientation {
                 Orientation::Rotate90 | Orientation::Rotate270 => {
                     (ideal_dims.1, ideal_dims.0)
-                },
+                }
                 _ => ideal_dims,
             };
             cur_folder.push(ImageInfo {
@@ -242,15 +240,9 @@ fn resize_images(
                 let (w, h) = target.resize_dims;
                 let im = im.resize(w, h, image::FilterType::Gaussian);
                 let im = match source.orientation {
-                    Orientation::Rotate90 => {
-                        im.rotate90()
-                    },
-                    Orientation::Rotate180 => {
-                        im.rotate180()
-                    },
-                    Orientation::Rotate270 => {
-                        im.rotate270()
-                    },
+                    Orientation::Rotate90 => im.rotate90(),
+                    Orientation::Rotate180 => im.rotate180(),
+                    Orientation::Rotate270 => im.rotate270(),
                     Orientation::Flipped => {
                         log::info!(
                             "Refusing to modify flipped image {:?}",
@@ -258,9 +250,7 @@ fn resize_images(
                         );
                         im
                     }
-                    _ => {
-                        im
-                    }
+                    _ => im,
                 };
                 // should not have a bad path at this point: SourceImageInfo
                 // is trusted
@@ -347,8 +337,7 @@ fn write_two_landscapes(
     page_id: usize,
     im0: &ImageInfo,
     im1: &ImageInfo,
-) -> std::io::Result<PageInfo>
-{
+) -> std::io::Result<PageInfo> {
     let page_path = out_folder.join(format!("page{:03}", page_id));
     std::fs::create_dir_all(&page_path)?;
     let page_path = page_path.join("page.tex");
@@ -357,8 +346,7 @@ fn write_two_landscapes(
     let mut page_text =
         include_str!("../data/page_2_landscapes.tex").to_string();
     if let Some(im0_path) = im0.path.canonicalize()?.to_str() {
-        replace(&mut page_text, "PHOTOTEX_FIRST_IMAGE_PATH", im0_path)
-            .unwrap();
+        replace(&mut page_text, "PHOTOTEX_FIRST_IMAGE_PATH", im0_path).unwrap();
     } else {
         log::error!(
             "could not include image path {:?} in {:?}: utf-8 failed",
@@ -405,9 +393,8 @@ fn write_pages(
             .filter(|(_, im)| im.rotated_dims.0 < im.rotated_dims.1);
 
         for ((page_id, im0), (_, im1)) in two_landscapes {
-            let page_info = write_two_landscapes(
-                out_folder, page_id, im0, im1,
-            )?;
+            let page_info =
+                write_two_landscapes(out_folder, page_id, im0, im1)?;
             group_infos.push((page_id, page_info));
         }
         group_infos.sort_by_key(|(id, _)| *id);
