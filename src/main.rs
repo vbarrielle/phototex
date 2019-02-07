@@ -374,6 +374,36 @@ fn write_two_landscapes(
     })
 }
 
+fn write_one_portrait(
+    out_folder: &Path,
+    page_id: usize,
+    im_info: &ImageInfo,
+) -> std::io::Result<PageInfo> {
+    let page_path = out_folder.join(format!("page{:03}", page_id));
+    std::fs::create_dir_all(&page_path)?;
+    let page_path = page_path.join("page.tex");
+    let f = std::fs::File::create(&page_path)?;
+    let mut writer = std::io::BufWriter::new(f);
+    let mut page_text =
+        include_str!("../data/page_1_portrait.tex").to_string();
+    if let Some(im_path) = im_info.path.canonicalize()?.to_str() {
+        replace(&mut page_text, "PHOTOTEX_IMAGE_PATH", im_path).unwrap();
+    } else {
+        log::error!(
+            "could not include image path {:?} in {:?}: utf-8 failed",
+            im_info.path,
+            page_path,
+        );
+    }
+    replace(&mut page_text, "PHOTOTEX_LEGEND", "%").unwrap();
+    write!(writer, "{}", page_text)?;
+
+    Ok(PageInfo {
+        path: page_path,
+        kind: PageKind::OnePortrait,
+    })
+}
+
 fn write_pages(
     out_folder: &Path,
     images: &[Vec<ImageInfo>],
@@ -395,6 +425,10 @@ fn write_pages(
         for ((page_id, im0), (_, im1)) in two_landscapes {
             let page_info =
                 write_two_landscapes(out_folder, page_id, im0, im1)?;
+            group_infos.push((page_id, page_info));
+        }
+        for (page_id, im) in one_portrait {
+            let page_info = write_one_portrait(out_folder, page_id, im)?;
             group_infos.push((page_id, page_info));
         }
         group_infos.sort_by_key(|(id, _)| *id);
