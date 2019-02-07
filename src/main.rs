@@ -342,6 +342,50 @@ fn write_toplevel(
     Ok(())
 }
 
+fn write_two_landscapes(
+    out_folder: &Path,
+    page_id: usize,
+    im0: &ImageInfo,
+    im1: &ImageInfo,
+) -> std::io::Result<PageInfo>
+{
+    let page_path = out_folder.join(format!("page{:03}", page_id));
+    std::fs::create_dir_all(&page_path)?;
+    let page_path = page_path.join("page.tex");
+    let f = std::fs::File::create(&page_path)?;
+    let mut writer = std::io::BufWriter::new(f);
+    let mut page_text =
+        include_str!("../data/page_2_landscapes.tex").to_string();
+    if let Some(im0_path) = im0.path.canonicalize()?.to_str() {
+        replace(&mut page_text, "PHOTOTEX_FIRST_IMAGE_PATH", im0_path)
+            .unwrap();
+    } else {
+        log::error!(
+            "could not include image path {:?} in {:?}: utf-8 failed",
+            im0.path,
+            page_path,
+        );
+    }
+    if let Some(im1_path) = im1.path.canonicalize()?.to_str() {
+        replace(&mut page_text, "PHOTOTEX_SECOND_IMAGE_PATH", im1_path)
+            .unwrap();
+    } else {
+        log::error!(
+            "could not include image path {:?} in {:?}: utf-8 failed",
+            im1.path,
+            page_path,
+        );
+    }
+    replace(&mut page_text, "PHOTOTEX_FIRST_LEGEND", "%").unwrap();
+    replace(&mut page_text, "PHOTOTEX_SECOND_LEGEND", "%").unwrap();
+    write!(writer, "{}", page_text)?;
+
+    Ok(PageInfo {
+        path: page_path,
+        kind: PageKind::TwoLandscapes,
+    })
+}
+
 fn write_pages(
     out_folder: &Path,
     images: &[Vec<ImageInfo>],
@@ -349,48 +393,25 @@ fn write_pages(
     let nb_images = images.iter().map(|v| v.len()).sum();
     let mut page_infos = Vec::with_capacity(nb_images);
     for im_group in images {
-        for (im0, im1) in im_group
+        let mut group_infos = Vec::with_capacity(im_group.len());
+        let two_landscapes = im_group
             .iter()
-            .filter(|im| im.rotated_dims.0 >= im.rotated_dims.1)
-            .tuples()
-        {
-            let page_id = page_infos.len();
-            let page_path = out_folder.join(format!("page{:03}", page_id));
-            std::fs::create_dir_all(&page_path)?;
-            let page_path = page_path.join("page.tex");
-            let f = std::fs::File::create(&page_path)?;
-            let mut writer = std::io::BufWriter::new(f);
-            let mut page_text =
-                include_str!("../data/page_2_landscapes.tex").to_string();
-            if let Some(im0_path) = im0.path.canonicalize()?.to_str() {
-                replace(&mut page_text, "PHOTOTEX_FIRST_IMAGE_PATH", im0_path)
-                    .unwrap();
-            } else {
-                log::error!(
-                    "could not include image path {:?} in {:?}: utf-8 failed",
-                    im0.path,
-                    page_path,
-                );
-            }
-            if let Some(im1_path) = im1.path.canonicalize()?.to_str() {
-                replace(&mut page_text, "PHOTOTEX_SECOND_IMAGE_PATH", im1_path)
-                    .unwrap();
-            } else {
-                log::error!(
-                    "could not include image path {:?} in {:?}: utf-8 failed",
-                    im1.path,
-                    page_path,
-                );
-            }
-            replace(&mut page_text, "PHOTOTEX_FIRST_LEGEND", "%").unwrap();
-            replace(&mut page_text, "PHOTOTEX_SECOND_LEGEND", "%").unwrap();
-            write!(writer, "{}", page_text)?;
+            .enumerate()
+            .filter(|(_, im)| im.rotated_dims.0 >= im.rotated_dims.1)
+            .tuples();
+        let one_portrait = im_group
+            .iter()
+            .enumerate()
+            .filter(|(_, im)| im.rotated_dims.0 < im.rotated_dims.1);
 
-            page_infos.push(PageInfo {
-                path: page_path,
-                kind: PageKind::TwoLandscapes,
-            });
+        for ((page_id, im0), (_, im1)) in two_landscapes {
+            let page_info = write_two_landscapes(
+                out_folder, page_id, im0, im1,
+            )?;
+            group_infos.push((page_id, page_info));
         }
+        group_infos.sort_by_key(|(id, _)| *id);
+        page_infos.extend(group_infos.drain(..).map(|(_, info)| info));
     }
     Ok(page_infos)
 }
