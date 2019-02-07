@@ -208,7 +208,7 @@ fn resize_images(
                     (ideal_dims.1, ideal_dims.0)
                 },
                 _ => ideal_dims,
-            }
+            };
             cur_folder.push(ImageInfo {
                 resize_dims: ideal_dims,
                 path: resized_path,
@@ -351,7 +351,7 @@ fn write_pages(
     for im_group in images {
         for (im0, im1) in im_group
             .iter()
-            .filter(|im| im.dimensions.0 >= im.dimensions.1)
+            .filter(|im| im.rotated_dims.0 >= im.rotated_dims.1)
             .tuples()
         {
             let page_id = page_infos.len();
