@@ -280,11 +280,13 @@ struct BookInfo {
     title: String,
 }
 
+#[derive(Debug)]
 enum PageKind {
     TwoLandscapes,
     OnePortrait,
 }
 
+#[derive(Debug)]
 struct PageInfo {
     path: PathBuf,
     kind: PageKind,
@@ -410,6 +412,7 @@ fn write_pages(
     let nb_images = images.iter().map(|v| v.len()).sum();
     let mut page_infos = Vec::with_capacity(nb_images);
     for im_group in images {
+        let offset = page_infos.len();
         let mut group_infos = Vec::with_capacity(im_group.len());
         let two_landscapes = im_group
             .iter()
@@ -423,11 +426,11 @@ fn write_pages(
 
         for ((page_id, im0), (_, im1)) in two_landscapes {
             let page_info =
-                write_two_landscapes(out_folder, page_id, im0, im1)?;
+                write_two_landscapes(out_folder, page_id + offset, im0, im1)?;
             group_infos.push((page_id, page_info));
         }
         for (page_id, im) in one_portrait {
-            let page_info = write_one_portrait(out_folder, page_id, im)?;
+            let page_info = write_one_portrait(out_folder, page_id + offset, im)?;
             group_infos.push((page_id, page_info));
         }
         group_infos.sort_by_key(|(id, _)| *id);
