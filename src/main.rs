@@ -8,12 +8,13 @@ use std::path::{Path, PathBuf};
 
 use phototex::specs::FolderSpec;
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 enum LayoutReq {
     OnePortrait,
     Nothing,
 }
 
+#[derive(Debug)]
 struct SourceImageInfo {
     path: PathBuf,
     dimensions: (u32, u32),
@@ -21,6 +22,7 @@ struct SourceImageInfo {
     user_req: LayoutReq,
 }
 
+#[derive(Debug)]
 struct ImageInfo {
     path: PathBuf,
     resize_dims: (u32, u32),
@@ -28,7 +30,7 @@ struct ImageInfo {
     user_req: LayoutReq,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 enum Orientation {
     // Rotations are clockwise to match image crate
     Rotate90,
@@ -445,8 +447,8 @@ fn write_pages(
 ) -> std::io::Result<Vec<PageInfo>> {
     let nb_images = images.iter().map(|v| v.len()).sum();
     let mut page_infos = Vec::with_capacity(nb_images);
+    let mut page_id = 0;
     for im_group in images {
-        let offset = page_infos.len();
         let mut group_infos = Vec::with_capacity(im_group.len());
         let two_landscapes = im_group
             .iter()
@@ -458,17 +460,20 @@ fn write_pages(
                 && im.user_req == LayoutReq::OnePortrait
         });
 
-        for ((page_id, im0), (_, im1)) in two_landscapes {
+        for ((page_order, im0), (_, im1)) in two_landscapes {
             let page_info =
-                write_two_landscapes(out_folder, page_id + offset, im0, im1)?;
-            group_infos.push((page_id, page_info));
+                write_two_landscapes(out_folder, page_id, im0, im1)?;
+            group_infos.push((page_order, page_info));
+            page_id += 1;
         }
-        for (page_id, im) in one_portrait {
-            let page_info = write_one_portrait(out_folder, page_id + offset, im)?;
-            group_infos.push((page_id, page_info));
+        for (page_order, im) in one_portrait {
+            let page_info = write_one_portrait(out_folder, page_id, im)?;
+            group_infos.push((page_order, page_info));
+            page_id += 1;
         }
         group_infos.sort_by_key(|(id, _)| *id);
         page_infos.extend(group_infos.drain(..).map(|(_, info)| info));
+
     }
     Ok(page_infos)
 }
