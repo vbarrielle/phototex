@@ -6,16 +6,26 @@ use std::error::Error;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use phototex::specs::FolderSpec;
+
+#[derive(Copy, Clone, PartialEq, Eq)]
+enum LayoutReq {
+    OnePortrait,
+    Nothing,
+}
+
 struct SourceImageInfo {
     path: PathBuf,
     dimensions: (u32, u32),
     orientation: Orientation,
+    user_req: LayoutReq,
 }
 
 struct ImageInfo {
     path: PathBuf,
     resize_dims: (u32, u32),
     rotated_dims: (u32, u32),
+    user_req: LayoutReq,
 }
 
 #[derive(Copy, Clone)]
@@ -143,6 +153,12 @@ fn find_images(images: &str, im_ext: &str) -> Vec<Vec<SourceImageInfo>> {
     let mut paths = Vec::new();
     for folder in glob(&images.join("*").to_string_lossy()).unwrap() {
         if let Ok(folder) = folder {
+            let folder_spec: FolderSpec =
+                std::fs::File::open(folder.join("specs.json"))
+                    .map(std::io::BufReader::new)
+                    .map(serde_json::from_reader)
+                    .unwrap_or(Ok(FolderSpec::empty()))
+                    .unwrap_or(FolderSpec::empty());
             let mut images = Vec::new();
             for image in
                 glob(&folder.join(format!("*.{}", im_ext)).to_string_lossy())
@@ -165,10 +181,27 @@ fn find_images(images: &str, im_ext: &str) -> Vec<Vec<SourceImageInfo>> {
                             image_dims.0,
                             image_dims.1,
                         );
+                        let basename =
+                            image.file_name().and_then(std::ffi::OsStr::to_str);
+                        let user_req = if basename
+                            .map(|name| {
+                                folder_spec
+                                    .one_portraits()
+                                    .iter()
+                                    .find(|name2| *name2 == name)
+                                    .is_some()
+                            })
+                            .unwrap_or(false)
+                        {
+                            LayoutReq::OnePortrait
+                        } else {
+                            LayoutReq::Nothing
+                        };
                         images.push(SourceImageInfo {
                             path: image,
                             dimensions: image_dims,
-                            orientation: orientation,
+                            orientation,
+                            user_req,
                         });
                     } else {
                         log::warn!("Could not open image {:?}", image);
@@ -211,6 +244,7 @@ fn resize_images(
                 resize_dims: ideal_dims,
                 path: resized_path,
                 rotated_dims,
+                user_req: im_info.user_req,
             });
         }
         im_folder
@@ -419,10 +453,10 @@ fn write_pages(
             .enumerate()
             .filter(|(_, im)| im.rotated_dims.0 >= im.rotated_dims.1)
             .tuples();
-        let one_portrait = im_group
-            .iter()
-            .enumerate()
-            .filter(|(_, im)| im.rotated_dims.0 < im.rotated_dims.1);
+        let one_portrait = im_group.iter().enumerate().filter(|(_, im)| {
+            im.rotated_dims.0 < im.rotated_dims.1
+                && im.user_req == LayoutReq::OnePortrait
+        });
 
         for ((page_id, im0), (_, im1)) in two_landscapes {
             let page_info =
