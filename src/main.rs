@@ -312,6 +312,31 @@ fn replace(
     Ok(())
 }
 
+fn replace_path(
+    io_string: &mut String,
+    pat: &str,
+    im: &ImageInfo,
+    page_path: &Path,
+) {
+    if let Ok(can_path) = im.path.canonicalize() {
+        if let Some(im_path) = can_path.to_str() {
+            replace(io_string, pat, im_path).unwrap();
+        } else {
+            log::error!(
+                "could not include image path {:?} in {:?}: utf-8 failed",
+                im.path,
+                page_path,
+            );
+        }
+    } else {
+        log::error!(
+            "could not include image path {:?} in {:?}: canonicalize failed",
+            im.path,
+            page_path,
+        );
+    }
+}
+
 struct BookInfo {
     title: String,
 }
@@ -412,6 +437,81 @@ fn write_two_landscapes(
     })
 }
 
+fn write_two_portraits_one_landscape(
+    out_folder: &Path,
+    page_id: usize,
+    infos: &[ImageInfo],
+) -> std::io::Result<PageInfo> {
+    assert_eq!(3, infos.len());
+    let page_path = out_folder.join(format!("page{:03}", page_id));
+    std::fs::create_dir_all(&page_path)?;
+    let page_path = page_path.join("page.tex");
+    let f = std::fs::File::create(&page_path)?;
+    let mut writer = std::io::BufWriter::new(f);
+    let mut page_text =
+        include_str!("../data/page_2_portrait_1_landscape.tex").to_string();
+    let (im0, im1, im2);
+    if infos[0].rotated_dims.0 >= infos[0].rotated_dims.1 {
+        im2 = &infos[0];
+        im0 = &infos[1];
+        im1 = &infos[2];
+    } else if infos[1].rotated_dims.0 >= infos[1].rotated_dims.1 {
+        im2 = &infos[1];
+        im0 = &infos[0];
+        im1 = &infos[2];
+    } else {
+        im2 = &infos[2];
+        im0 = &infos[0];
+        im1 = &infos[1];
+    }
+    replace_path(&mut page_text, "PHOTOTEX_FIRST_IMAGE_PATH", im0, &page_path);
+    replace_path(&mut page_text, "PHOTOTEX_SECOND_IMAGE_PATH", im1, &page_path);
+    replace_path(&mut page_text, "PHOTOTEX_THIRD_IMAGE_PATH", im2, &page_path);
+    replace(&mut page_text, "PHOTOTEX_FIRST_SECOND_LEGENDS", "%").unwrap();
+    replace(&mut page_text, "PHOTOTEX_THIRD_LEGEND", "%").unwrap();
+    write!(writer, "{}", page_text)?;
+
+    Ok(PageInfo {
+        path: page_path,
+        kind: PageKind::TwoLandscapes,
+    })
+}
+
+fn write_four_portraits(
+    out_folder: &Path,
+    page_id: usize,
+    infos: &[ImageInfo],
+) -> std::io::Result<PageInfo> {
+    assert_eq!(4, infos.len());
+    let page_path = out_folder.join(format!("page{:03}", page_id));
+    std::fs::create_dir_all(&page_path)?;
+    let page_path = page_path.join("page.tex");
+    let f = std::fs::File::create(&page_path)?;
+    let mut writer = std::io::BufWriter::new(f);
+    let mut page_text =
+        include_str!("../data/page_4_portraits.tex").to_string();
+    replace_path(
+        &mut page_text, "PHOTOTEX_FIRST_IMAGE_PATH", &infos[0], &page_path
+    );
+    replace_path(
+        &mut page_text, "PHOTOTEX_SECOND_IMAGE_PATH", &infos[1], &page_path
+    );
+    replace_path(
+        &mut page_text, "PHOTOTEX_THIRD_IMAGE_PATH", &infos[2], &page_path
+    );
+    replace_path(
+        &mut page_text, "PHOTOTEX_FOURTH_IMAGE_PATH", &infos[2], &page_path
+    );
+    replace(&mut page_text, "PHOTOTEX_FIRST_SECOND_LEGENDS", "%").unwrap();
+    replace(&mut page_text, "PHOTOTEX_THIRD_FOURTH_LEGENDS", "%").unwrap();
+    write!(writer, "{}", page_text)?;
+
+    Ok(PageInfo {
+        path: page_path,
+        kind: PageKind::TwoLandscapes,
+    })
+}
+
 fn write_one_portrait(
     out_folder: &Path,
     page_id: usize,
@@ -471,6 +571,55 @@ fn write_pages(
             group_infos.push((page_order, page_info));
             page_id += 1;
         }
+        let nb_in_group = im_group.len();
+        let processed: std::collections::HashSet<_> =
+            group_infos.iter().map(|(order, _)| order).collect();
+        let missing: Vec<_> =
+            (0..nb_in_group).filter(|i| processed.contains(i)).collect();
+        let mut nb_consec = 0;
+        let mut nb_landscape = 0;
+        for (missing_id, &page_order) in missing.iter().enumerate() {
+            nb_consec += 1;
+            let im = &im_group[page_order];
+            if im.rotated_dims.0 >= im.rotated_dims.1 {
+                nb_landscape += 1;
+            }
+            let last = missing_id == missing.len() - 1;
+            if nb_landscape == 1 && nb_consec == 3 {
+                let page_info = write_two_portraits_one_landscape(
+                    out_folder, page_id,
+                    &im_group[page_order - 3..=page_order],
+                )?;
+                group_infos.push((page_order, page_info));
+                page_id += 1;
+                nb_consec = 0;
+                nb_landscape = 0;
+            } else if nb_consec == 4 {
+                assert!(nb_landscape == 0);
+                let page_info = write_four_portraits(
+                    out_folder, page_id,
+                    &im_group[page_order - 4..=page_order],
+                )?;
+                group_infos.push((page_order, page_info));
+                page_id += 1;
+                nb_consec = 0;
+                nb_landscape = 0;
+            } else if nb_landscape == 1 && nb_consec == 1 && last {
+                unimplemented!()
+            } else if nb_landscape == 1 && nb_consec == 2 && last {
+                unimplemented!()
+            } else if nb_consec == 1 && last {
+                unimplemented!()
+            } else if nb_consec == 2 && last {
+                unimplemented!()
+            } else if nb_consec == 3 && last {
+                unimplemented!()
+            } else if last {
+                unreachable!()
+            }
+            // no terminal else as that is the case where we want to loop
+        }
+
         group_infos.sort_by_key(|(id, _)| *id);
         page_infos.extend(group_infos.drain(..).map(|(_, info)| info));
 
