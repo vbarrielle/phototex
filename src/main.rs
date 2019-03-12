@@ -440,9 +440,10 @@ fn write_two_landscapes(
 fn write_two_portraits_one_landscape(
     out_folder: &Path,
     page_id: usize,
-    infos: &[ImageInfo],
+    im0: &ImageInfo,
+    im1: &ImageInfo,
+    im2: &ImageInfo,
 ) -> std::io::Result<PageInfo> {
-    assert_eq!(3, infos.len());
     let page_path = out_folder.join(format!("page{:03}", page_id));
     std::fs::create_dir_all(&page_path)?;
     let page_path = page_path.join("page.tex");
@@ -450,23 +451,23 @@ fn write_two_portraits_one_landscape(
     let mut writer = std::io::BufWriter::new(f);
     let mut page_text =
         include_str!("../data/page_2_portrait_1_landscape.tex").to_string();
-    let (im0, im1, im2);
-    if infos[0].rotated_dims.0 >= infos[0].rotated_dims.1 {
-        im2 = &infos[0];
-        im0 = &infos[1];
-        im1 = &infos[2];
-    } else if infos[1].rotated_dims.0 >= infos[1].rotated_dims.1 {
-        im2 = &infos[1];
-        im0 = &infos[0];
-        im1 = &infos[2];
+    let (im0_, im1_, im2_);
+    if im0.rotated_dims.0 >= im0.rotated_dims.1 {
+        im2_ = im0;
+        im0_ = im1;
+        im1_ = im2;
+    } else if im1.rotated_dims.0 >= im1.rotated_dims.1 {
+        im2_ = im1;
+        im0_ = im0;
+        im1_ = im2;
     } else {
-        im2 = &infos[2];
-        im0 = &infos[0];
-        im1 = &infos[1];
+        im2_ = im2;
+        im0_ = im0;
+        im1_ = im1;
     }
-    replace_path(&mut page_text, "PHOTOTEX_FIRST_IMAGE_PATH", im0, &page_path);
-    replace_path(&mut page_text, "PHOTOTEX_SECOND_IMAGE_PATH", im1, &page_path);
-    replace_path(&mut page_text, "PHOTOTEX_THIRD_IMAGE_PATH", im2, &page_path);
+    replace_path(&mut page_text, "PHOTOTEX_FIRST_IMAGE_PATH", im0_, &page_path);
+    replace_path(&mut page_text, "PHOTOTEX_SECOND_IMAGE_PATH", im1_, &page_path);
+    replace_path(&mut page_text, "PHOTOTEX_THIRD_IMAGE_PATH", im2_, &page_path);
     replace(&mut page_text, "PHOTOTEX_FIRST_SECOND_LEGENDS", "%").unwrap();
     replace(&mut page_text, "PHOTOTEX_THIRD_LEGEND", "%").unwrap();
     write!(writer, "{}", page_text)?;
@@ -480,9 +481,11 @@ fn write_two_portraits_one_landscape(
 fn write_four_portraits(
     out_folder: &Path,
     page_id: usize,
-    infos: &[ImageInfo],
+    im0: &ImageInfo,
+    im1: &ImageInfo,
+    im2: &ImageInfo,
+    im3: &ImageInfo,
 ) -> std::io::Result<PageInfo> {
-    assert_eq!(4, infos.len());
     let page_path = out_folder.join(format!("page{:03}", page_id));
     std::fs::create_dir_all(&page_path)?;
     let page_path = page_path.join("page.tex");
@@ -491,16 +494,16 @@ fn write_four_portraits(
     let mut page_text =
         include_str!("../data/page_4_portraits.tex").to_string();
     replace_path(
-        &mut page_text, "PHOTOTEX_FIRST_IMAGE_PATH", &infos[0], &page_path
+        &mut page_text, "PHOTOTEX_FIRST_IMAGE_PATH", &im0, &page_path
     );
     replace_path(
-        &mut page_text, "PHOTOTEX_SECOND_IMAGE_PATH", &infos[1], &page_path
+        &mut page_text, "PHOTOTEX_SECOND_IMAGE_PATH", &im1, &page_path
     );
     replace_path(
-        &mut page_text, "PHOTOTEX_THIRD_IMAGE_PATH", &infos[2], &page_path
+        &mut page_text, "PHOTOTEX_THIRD_IMAGE_PATH", &im2, &page_path
     );
     replace_path(
-        &mut page_text, "PHOTOTEX_FOURTH_IMAGE_PATH", &infos[2], &page_path
+        &mut page_text, "PHOTOTEX_FOURTH_IMAGE_PATH", &im3, &page_path
     );
     replace(&mut page_text, "PHOTOTEX_FIRST_SECOND_LEGENDS", "%").unwrap();
     replace(&mut page_text, "PHOTOTEX_THIRD_FOURTH_LEGENDS", "%").unwrap();
@@ -549,7 +552,8 @@ fn write_pages(
     let mut page_infos = Vec::with_capacity(nb_images);
     let mut page_id = 0;
     for im_group in images {
-        let mut group_infos = Vec::with_capacity(im_group.len());
+        let nb_in_group = im_group.len();
+        let mut group_infos = Vec::with_capacity(nb_in_group);
         let two_landscapes = im_group
             .iter()
             .enumerate()
@@ -560,22 +564,24 @@ fn write_pages(
                 && im.user_req == LayoutReq::OnePortrait
         });
 
-        for ((page_order, im0), (_, im1)) in two_landscapes {
+        let mut processed = Vec::with_capacity(nb_in_group);
+        for ((page_order, im0), (im1_id, im1)) in two_landscapes {
             let page_info =
                 write_two_landscapes(out_folder, page_id, im0, im1)?;
             group_infos.push((page_order, page_info));
             page_id += 1;
+            processed.push(page_order);
+            processed.push(im1_id);
         }
         for (page_order, im) in one_portrait {
             let page_info = write_one_portrait(out_folder, page_id, im)?;
             group_infos.push((page_order, page_info));
             page_id += 1;
+            processed.push(page_order);
         }
-        let nb_in_group = im_group.len();
-        let processed: std::collections::HashSet<_> =
-            group_infos.iter().map(|(order, _)| order).collect();
+        let processed: std::collections::HashSet<_> = processed.iter().collect();
         let missing: Vec<_> =
-            (0..nb_in_group).filter(|i| processed.contains(i)).collect();
+            (0..nb_in_group).filter(|i| !processed.contains(i)).collect();
         let mut nb_consec = 0;
         let mut nb_landscape = 0;
         for (missing_id, &page_order) in missing.iter().enumerate() {
@@ -588,32 +594,57 @@ fn write_pages(
             if nb_landscape == 1 && nb_consec == 3 {
                 let page_info = write_two_portraits_one_landscape(
                     out_folder, page_id,
-                    &im_group[page_order - 3..=page_order],
+                    &im_group[page_order],
+                    &im_group[missing[missing_id - 1]],
+                    &im_group[missing[missing_id - 2]],
                 )?;
                 group_infos.push((page_order, page_info));
                 page_id += 1;
                 nb_consec = 0;
                 nb_landscape = 0;
             } else if nb_consec == 4 {
-                assert!(nb_landscape == 0);
+                // there could be one landscape here, but we accept to have
+                // it small.
                 let page_info = write_four_portraits(
                     out_folder, page_id,
-                    &im_group[page_order - 4..=page_order],
+                    &im_group[page_order],
+                    &im_group[missing[missing_id - 1]],
+                    &im_group[missing[missing_id - 2]],
+                    &im_group[missing[missing_id - 3]],
                 )?;
                 group_infos.push((page_order, page_info));
                 page_id += 1;
                 nb_consec = 0;
                 nb_landscape = 0;
-            } else if nb_landscape == 1 && nb_consec == 1 && last {
-                unimplemented!()
-            } else if nb_landscape == 1 && nb_consec == 2 && last {
-                unimplemented!()
             } else if nb_consec == 1 && last {
-                unimplemented!()
+                let page_info = write_one_portrait(
+                    out_folder, page_id, &im_group[page_order],
+                )?;
+                group_infos.push((page_order, page_info));
+                page_id += 1;
+                nb_consec = 0;
+                nb_landscape = 0;
             } else if nb_consec == 2 && last {
-                unimplemented!()
+                let page_info = write_two_landscapes(
+                    out_folder, page_id,
+                    &im_group[page_order],
+                    &im_group[missing[missing_id - 1]],
+                )?;
+                group_infos.push((page_order, page_info));
+                page_id += 1;
+                nb_consec = 0;
+                nb_landscape = 0;
             } else if nb_consec == 3 && last {
-                unimplemented!()
+                let page_info = write_two_portraits_one_landscape(
+                    out_folder, page_id,
+                    &im_group[page_order],
+                    &im_group[missing[missing_id - 1]],
+                    &im_group[missing[missing_id - 2]],
+                )?;
+                group_infos.push((page_order, page_info));
+                page_id += 1;
+                nb_consec = 0;
+                nb_landscape = 0;
             } else if last {
                 unreachable!()
             }
