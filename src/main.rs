@@ -594,9 +594,9 @@ fn write_pages(
             if nb_landscape == 1 && nb_consec == 3 {
                 let page_info = write_two_portraits_one_landscape(
                     out_folder, page_id,
-                    &im_group[page_order],
-                    &im_group[missing[missing_id - 1]],
                     &im_group[missing[missing_id - 2]],
+                    &im_group[missing[missing_id - 1]],
+                    &im_group[page_order],
                 )?;
                 group_infos.push((page_order, page_info));
                 page_id += 1;
@@ -607,10 +607,10 @@ fn write_pages(
                 // it small.
                 let page_info = write_four_portraits(
                     out_folder, page_id,
-                    &im_group[page_order],
-                    &im_group[missing[missing_id - 1]],
-                    &im_group[missing[missing_id - 2]],
                     &im_group[missing[missing_id - 3]],
+                    &im_group[missing[missing_id - 2]],
+                    &im_group[missing[missing_id - 1]],
+                    &im_group[page_order],
                 )?;
                 group_infos.push((page_order, page_info));
                 page_id += 1;
@@ -627,8 +627,8 @@ fn write_pages(
             } else if nb_consec == 2 && last {
                 let page_info = write_two_landscapes(
                     out_folder, page_id,
-                    &im_group[page_order],
                     &im_group[missing[missing_id - 1]],
+                    &im_group[page_order],
                 )?;
                 group_infos.push((page_order, page_info));
                 page_id += 1;
@@ -637,9 +637,9 @@ fn write_pages(
             } else if nb_consec == 3 && last {
                 let page_info = write_two_portraits_one_landscape(
                     out_folder, page_id,
-                    &im_group[page_order],
-                    &im_group[missing[missing_id - 1]],
                     &im_group[missing[missing_id - 2]],
+                    &im_group[missing[missing_id - 1]],
+                    &im_group[page_order],
                 )?;
                 group_infos.push((page_order, page_info));
                 page_id += 1;
