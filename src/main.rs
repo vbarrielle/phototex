@@ -374,6 +374,7 @@ fn write_toplevel(
         &page_includes,
     )
     .unwrap();
+    replace(&mut toplevel_text, "PHOTOTEX_FOURTH_COVER", "").unwrap();
 
     let top_file_name = "photobook.tex";
     let toplevel_file = out_folder.join(top_file_name);

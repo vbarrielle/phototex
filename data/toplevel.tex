@@ -24,12 +24,23 @@
     {\Huge PHOTOTEX_TITLE}
   \end{center}
 \end{titlepage}
-\clearpage%
-% empty page
+%\clearpage%
+% empty page (second cover)
+\newpage\null\thispagestyle{empty}\newpage%
 
 PHOTOTEX_PAGES_INCLUDE_PLACEHOLDER
 
-\mainmatter%
+% clear to even page
+\newcommand*\cleartoleftpage{%
+  \clearpage
+  \ifodd\value{page}\hbox{}\newpage\fi
+}
+
+% 3rd and 4th cover
+\cleartoleftpage%
+\begin{center}
+  {\Huge PHOTOTEX_FOURTH_COVER}
+\end{center}
 
 % main content
 \end{document}
