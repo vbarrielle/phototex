@@ -14,13 +14,28 @@ pub fn generate_pdf(
         return output.map(|_| String::new());
     }
     if !output.unwrap().status.success() {
-        log::error!("Latex compilation error");
-        // TODO write log to file
+        log::error!(
+            "Latex compilation error, please check log file {}",
+            tex_file_name.replace(".tex", ".log")
+        );
+        return Err(
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput, "latex error",
+            )
+        );
     }
     log::info!("second call to pdflatex");
     let output = pdflatex.output().expect("pdflatex failed to execute twice");
     if !output.status.success() {
-        log::error!("Latex compilation error");
+        log::error!(
+            "Latex compilation error, please check log file {}",
+            tex_file_name.replace(".tex", ".log")
+        );
+        return Err(
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput, "latex error",
+            )
+        );
     }
     let pdf_file_name = if tex_file_name.ends_with(".tex") {
         tex_file_name.replace(".tex", ".pdf")
