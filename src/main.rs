@@ -357,12 +357,52 @@ struct PageInfo {
     kind: PageKind,
 }
 
+fn handle_title_image(
+    toplevel_text: &mut String, im_path: Option<&Path>,
+) -> std::io::Result<()>
+{
+    if let Some(im_path) = im_path {
+        if let Some(im_path) = im_path.canonicalize()?.to_str() {
+            replace(
+                toplevel_text,
+                "PHOTOTEX_TITLE_IMAGE_COMMAND",
+                &format!(
+                    "\\includegraphics[width=0.90\\textwidth,\
+                                       height=0.70\\textheight,\
+                                       keepaspectratio]{{{}}}",
+                    im_path,
+                ),
+            ).unwrap();
+            Ok(())
+        } else {
+            log::error!(
+                "could not include image path {:?} in title page: utf-8 failed",
+                im_path,
+            );
+            Err(
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput, "utf-8 error",
+                )
+            )
+        }
+    }
+    else {
+        replace(
+            toplevel_text,
+            "PHOTOTEX_TITLE_IMAGE_COMMAND",
+            ""
+        ).unwrap();
+        Ok(())
+    }
+}
+
 fn write_toplevel(
     out_folder: &Path,
     book_info: BookInfo,
     page_infos: &[PageInfo],
 ) -> std::io::Result<String> {
     let mut toplevel_text = include_str!("../data/toplevel.tex").to_string();
+    handle_title_image(&mut toplevel_text, None)?;
     replace(
         &mut toplevel_text,
         "PHOTOTEX_TITLE_STRING",
