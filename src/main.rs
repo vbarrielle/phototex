@@ -700,6 +700,17 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .takes_value(true),
         )
         .arg(
+            clap::Arg::with_name("strip_inner_covers")
+                .long("--strip-inner-covers")
+                .value_name("STRIP_INNER_COVERS")
+                .help(
+                    "With this flag, a version without inner covers will also \
+                     be generated.\nThis can be the required format for  some \
+                     print shops."
+                )
+                .takes_value(false),
+        )
+        .arg(
             clap::Arg::with_name("verbosity")
                 .short("v")
                 .multiple(true)
@@ -723,6 +734,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let dpm = matches.value_of("dpm").unwrap_or("12.").parse()?;
 
     let page_format = matches.value_of("page_format").unwrap_or("A4");
+
+    let strip_inner_covers = matches.is_present("strip_inner_covers");
+
     let nb_cpus = num_cpus::get_physical();
     log::info!("resizing will be parallelized on {} threads", nb_cpus);
     rayon::ThreadPoolBuilder::new()
@@ -750,9 +764,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
     let top_file_name = write_toplevel(out_folder, &book_info, &page_infos)?;
 
-    // TODO: generate pdf by invoking pdflatex and optionally strip 2nd and
-    // 3rd covers
-    pdf_handling::generate_pdf(out_folder, &top_file_name)?;
+    let pdf_file_name = pdf_handling::generate_pdf(out_folder, &top_file_name)?;
+    if strip_inner_covers {
+        log::info!("Stripping inner covers...");
+        let trimmed_pdf_file_name = pdf_handling::remove_second_third_covers(
+            out_folder, &pdf_file_name,
+        )?;
+        log::info!("Stripping done, in {}", trimmed_pdf_file_name);
+    }
     Ok(())
 }
 
