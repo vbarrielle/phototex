@@ -693,16 +693,24 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .takes_value(true),
         )
         .arg(
+            clap::Arg::with_name("title")
+                .long("--title")
+                .value_name("TITLE")
+                .help("Title of the album. Defaults to \"Titre\".")
+                .takes_value(true),
+        )
+        .arg(
             clap::Arg::with_name("page_format")
                 .long("--page-format")
                 .value_name("PAGE FORMAT")
-                .help("Page format. Defaults to A4.")
+                .help(
+                    "Page format. Defaults to A4 portrait. No support for \
+                     other formats presently.")
                 .takes_value(true),
         )
         .arg(
             clap::Arg::with_name("strip_inner_covers")
                 .long("--strip-inner-covers")
-                .value_name("STRIP_INNER_COVERS")
                 .help(
                     "With this flag, a version without inner covers will also \
                      be generated.\nThis can be the required format for  some \
@@ -737,6 +745,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let strip_inner_covers = matches.is_present("strip_inner_covers");
 
+    let title = matches.value_of("title").unwrap_or("Titre");
+
     let nb_cpus = num_cpus::get_physical();
     log::info!("resizing will be parallelized on {} threads", nb_cpus);
     rayon::ThreadPoolBuilder::new()
@@ -760,7 +770,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let page_infos = write_pages(out_folder, &im_infos)?;
     let book_info = BookInfo {
-        title: "Titre".to_string(),
+        title: title.into(),
     };
     let top_file_name = write_toplevel(out_folder, &book_info, &page_infos)?;
 
