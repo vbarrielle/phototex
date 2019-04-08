@@ -338,8 +338,11 @@ fn replace_path(
     }
 }
 
-struct BookInfo {
-    title: String,
+#[derive(Copy, Clone)]
+struct BookInfo<'a> {
+    title: &'a str,
+    title_font_size: &'a str,
+    title_leading_size: &'a str,
 }
 
 #[derive(Debug)]
@@ -356,11 +359,25 @@ struct PageInfo {
 
 fn write_toplevel(
     out_folder: &Path,
-    book_info: &BookInfo,
+    book_info: BookInfo,
     page_infos: &[PageInfo],
 ) -> std::io::Result<String> {
     let mut toplevel_text = include_str!("../data/toplevel.tex").to_string();
-    replace(&mut toplevel_text, "PHOTOTEX_TITLE", &book_info.title).unwrap();
+    replace(
+        &mut toplevel_text,
+        "PHOTOTEX_TITLE_STRING",
+        book_info.title,
+    ).unwrap();
+    replace(
+        &mut toplevel_text,
+        "PHOTOTEX_TITLE_FONT_SIZE",
+        book_info.title_font_size,
+    ).unwrap();
+    replace(
+        &mut toplevel_text,
+        "PHOTOTEX_TITLE_LEADING_SIZE",
+        book_info.title_leading_size,
+    ).unwrap();
     let mut page_includes = String::new();
     for page in page_infos {
         if let Some(path) = page.path.canonicalize()?.to_str() {
@@ -700,6 +717,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .takes_value(true),
         )
         .arg(
+            clap::Arg::with_name("title_font_size")
+                .long("--title-font-size")
+                .value_name("TITLE_FONT_SIZE")
+                .help("Font size for the title. Defaults to 42pt.")
+                .takes_value(true),
+        )
+        .arg(
             clap::Arg::with_name("page_format")
                 .long("--page-format")
                 .value_name("PAGE FORMAT")
@@ -747,6 +771,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let title = matches.value_of("title").unwrap_or("Titre");
 
+    let title_font_size: f32 = matches
+        .value_of("title_font_size").unwrap_or("42").parse()?;
+    let title_leading_size = title_font_size * 1.10f32;
+    let title_font_size = format!("{}pt", title_font_size);
+    let title_leading_size = format!("{}pt", title_leading_size);
+
     let nb_cpus = num_cpus::get_physical();
     log::info!("resizing will be parallelized on {} threads", nb_cpus);
     rayon::ThreadPoolBuilder::new()
@@ -770,9 +800,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let page_infos = write_pages(out_folder, &im_infos)?;
     let book_info = BookInfo {
-        title: title.into(),
+        title,
+        title_font_size: &title_font_size,
+        title_leading_size: &title_leading_size,
     };
-    let top_file_name = write_toplevel(out_folder, &book_info, &page_infos)?;
+    let top_file_name = write_toplevel(out_folder, book_info, &page_infos)?;
 
     let pdf_file_name = pdf_handling::generate_pdf(out_folder, &top_file_name)?;
     if strip_inner_covers {
