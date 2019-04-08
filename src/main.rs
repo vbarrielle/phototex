@@ -7,6 +7,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use phototex::specs::FolderSpec;
+use phototex::pdf_handling;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 enum LayoutReq {
@@ -357,7 +358,7 @@ fn write_toplevel(
     out_folder: &Path,
     book_info: &BookInfo,
     page_infos: &[PageInfo],
-) -> std::io::Result<()> {
+) -> std::io::Result<String> {
     let mut toplevel_text = include_str!("../data/toplevel.tex").to_string();
     replace(&mut toplevel_text, "PHOTOTEX_TITLE", &book_info.title).unwrap();
     let mut page_includes = String::new();
@@ -393,7 +394,7 @@ fn write_toplevel(
     let f = std::fs::File::create(&makefile)?;
     let mut writer = std::io::BufWriter::new(f);
     write!(writer, "{}", makefile_text)?;
-    Ok(())
+    Ok(top_file_name.into())
 }
 
 fn write_two_landscapes(
@@ -747,7 +748,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     let book_info = BookInfo {
         title: "Titre".to_string(),
     };
-    write_toplevel(out_folder, &book_info, &page_infos)?;
+    let top_file_name = write_toplevel(out_folder, &book_info, &page_infos)?;
+
+    // TODO: generate pdf by invoking pdflatex and optionally strip 2nd and
+    // 3rd covers
+    pdf_handling::generate_pdf(out_folder, &top_file_name)?;
     Ok(())
 }
 
