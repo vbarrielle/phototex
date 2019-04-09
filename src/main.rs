@@ -6,8 +6,8 @@ use std::error::Error;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use phototex::specs::FolderSpec;
 use phototex::pdf_handling;
+use phototex::specs::FolderSpec;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 enum LayoutReq {
@@ -359,9 +359,9 @@ struct PageInfo {
 }
 
 fn handle_title_image(
-    toplevel_text: &mut String, im_path: Option<&Path>,
-) -> std::io::Result<()>
-{
+    toplevel_text: &mut String,
+    im_path: Option<&Path>,
+) -> std::io::Result<()> {
     if let Some(im_path) = im_path {
         if let Some(im_path) = im_path.canonicalize()?.to_str() {
             replace(
@@ -369,30 +369,25 @@ fn handle_title_image(
                 "PHOTOTEX_TITLE_IMAGE_COMMAND",
                 &format!(
                     "\\includegraphics[width=0.90\\textwidth,\
-                                       height=0.70\\textheight,\
-                                       keepaspectratio]{{{}}}",
+                     height=0.70\\textheight,\
+                     keepaspectratio]{{{}}}",
                     im_path,
                 ),
-            ).unwrap();
+            )
+            .unwrap();
             Ok(())
         } else {
             log::error!(
                 "could not include image path {:?} in title page: utf-8 failed",
                 im_path,
             );
-            Err(
-                std::io::Error::new(
-                    std::io::ErrorKind::InvalidInput, "utf-8 error",
-                )
-            )
+            Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "utf-8 error",
+            ))
         }
-    }
-    else {
-        replace(
-            toplevel_text,
-            "PHOTOTEX_TITLE_IMAGE_COMMAND",
-            ""
-        ).unwrap();
+    } else {
+        replace(toplevel_text, "PHOTOTEX_TITLE_IMAGE_COMMAND", "").unwrap();
         Ok(())
     }
 }
@@ -404,21 +399,20 @@ fn write_toplevel(
 ) -> std::io::Result<String> {
     let mut toplevel_text = include_str!("../data/toplevel.tex").to_string();
     handle_title_image(&mut toplevel_text, book_info.title_im_path)?;
-    replace(
-        &mut toplevel_text,
-        "PHOTOTEX_TITLE_STRING",
-        book_info.title,
-    ).unwrap();
+    replace(&mut toplevel_text, "PHOTOTEX_TITLE_STRING", book_info.title)
+        .unwrap();
     replace(
         &mut toplevel_text,
         "PHOTOTEX_TITLE_FONT_SIZE",
         book_info.title_font_size,
-    ).unwrap();
+    )
+    .unwrap();
     replace(
         &mut toplevel_text,
         "PHOTOTEX_TITLE_LEADING_SIZE",
         book_info.title_leading_size,
-    ).unwrap();
+    )
+    .unwrap();
     let mut page_includes = String::new();
     for page in page_infos {
         if let Some(path) = page.path.canonicalize()?.to_str() {
@@ -525,9 +519,24 @@ fn write_two_portraits_one_landscape(
         im0_ = im0;
         im1_ = im1;
     }
-    replace_path(&mut page_text, "PHOTOTEX_FIRST_IMAGE_PATH", im0_, &page_path);
-    replace_path(&mut page_text, "PHOTOTEX_SECOND_IMAGE_PATH", im1_, &page_path);
-    replace_path(&mut page_text, "PHOTOTEX_THIRD_IMAGE_PATH", im2_, &page_path);
+    replace_path(
+        &mut page_text,
+        "PHOTOTEX_FIRST_IMAGE_PATH",
+        im0_,
+        &page_path,
+    );
+    replace_path(
+        &mut page_text,
+        "PHOTOTEX_SECOND_IMAGE_PATH",
+        im1_,
+        &page_path,
+    );
+    replace_path(
+        &mut page_text,
+        "PHOTOTEX_THIRD_IMAGE_PATH",
+        im2_,
+        &page_path,
+    );
     replace(&mut page_text, "PHOTOTEX_FIRST_SECOND_LEGENDS", "%").unwrap();
     replace(&mut page_text, "PHOTOTEX_THIRD_LEGEND", "%").unwrap();
     write!(writer, "{}", page_text)?;
@@ -554,16 +563,28 @@ fn write_four_portraits(
     let mut page_text =
         include_str!("../data/page_4_portraits.tex").to_string();
     replace_path(
-        &mut page_text, "PHOTOTEX_FIRST_IMAGE_PATH", &im0, &page_path
+        &mut page_text,
+        "PHOTOTEX_FIRST_IMAGE_PATH",
+        &im0,
+        &page_path,
     );
     replace_path(
-        &mut page_text, "PHOTOTEX_SECOND_IMAGE_PATH", &im1, &page_path
+        &mut page_text,
+        "PHOTOTEX_SECOND_IMAGE_PATH",
+        &im1,
+        &page_path,
     );
     replace_path(
-        &mut page_text, "PHOTOTEX_THIRD_IMAGE_PATH", &im2, &page_path
+        &mut page_text,
+        "PHOTOTEX_THIRD_IMAGE_PATH",
+        &im2,
+        &page_path,
     );
     replace_path(
-        &mut page_text, "PHOTOTEX_FOURTH_IMAGE_PATH", &im3, &page_path
+        &mut page_text,
+        "PHOTOTEX_FOURTH_IMAGE_PATH",
+        &im3,
+        &page_path,
     );
     replace(&mut page_text, "PHOTOTEX_FIRST_SECOND_LEGENDS", "%").unwrap();
     replace(&mut page_text, "PHOTOTEX_THIRD_FOURTH_LEGENDS", "%").unwrap();
@@ -639,9 +660,11 @@ fn write_pages(
             page_id += 1;
             processed.push(page_order);
         }
-        let processed: std::collections::HashSet<_> = processed.iter().collect();
-        let missing: Vec<_> =
-            (0..nb_in_group).filter(|i| !processed.contains(i)).collect();
+        let processed: std::collections::HashSet<_> =
+            processed.iter().collect();
+        let missing: Vec<_> = (0..nb_in_group)
+            .filter(|i| !processed.contains(i))
+            .collect();
         let mut nb_consec = 0;
         let mut nb_landscape = 0;
         for (missing_id, &page_order) in missing.iter().enumerate() {
@@ -653,7 +676,8 @@ fn write_pages(
             let last = missing_id == missing.len() - 1;
             if nb_landscape == 1 && nb_consec == 3 {
                 let page_info = write_two_portraits_one_landscape(
-                    out_folder, page_id,
+                    out_folder,
+                    page_id,
                     &im_group[missing[missing_id - 2]],
                     &im_group[missing[missing_id - 1]],
                     &im_group[page_order],
@@ -666,7 +690,8 @@ fn write_pages(
                 // there could be one landscape here, but we accept to have
                 // it small.
                 let page_info = write_four_portraits(
-                    out_folder, page_id,
+                    out_folder,
+                    page_id,
                     &im_group[missing[missing_id - 3]],
                     &im_group[missing[missing_id - 2]],
                     &im_group[missing[missing_id - 1]],
@@ -678,7 +703,9 @@ fn write_pages(
                 nb_landscape = 0;
             } else if nb_consec == 1 && last {
                 let page_info = write_one_portrait(
-                    out_folder, page_id, &im_group[page_order],
+                    out_folder,
+                    page_id,
+                    &im_group[page_order],
                 )?;
                 group_infos.push((page_order, page_info));
                 page_id += 1;
@@ -686,7 +713,8 @@ fn write_pages(
                 nb_landscape = 0;
             } else if nb_consec == 2 && last {
                 let page_info = write_two_landscapes(
-                    out_folder, page_id,
+                    out_folder,
+                    page_id,
                     &im_group[missing[missing_id - 1]],
                     &im_group[page_order],
                 )?;
@@ -696,7 +724,8 @@ fn write_pages(
                 nb_landscape = 0;
             } else if nb_consec == 3 && last {
                 let page_info = write_two_portraits_one_landscape(
-                    out_folder, page_id,
+                    out_folder,
+                    page_id,
                     &im_group[missing[missing_id - 2]],
                     &im_group[missing[missing_id - 1]],
                     &im_group[page_order],
@@ -713,7 +742,6 @@ fn write_pages(
 
         group_infos.sort_by_key(|(id, _)| *id);
         page_infos.extend(group_infos.drain(..).map(|(_, info)| info));
-
     }
     Ok(page_infos)
 }
@@ -777,7 +805,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .value_name("PAGE FORMAT")
                 .help(
                     "Page format. Defaults to A4 portrait. No support for \
-                     other formats presently.")
+                     other formats presently.",
+                )
                 .takes_value(true),
         )
         .arg(
@@ -786,7 +815,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .help(
                     "With this flag, a version without inner covers will also \
                      be generated.\nThis can be the required format for  some \
-                     print shops."
+                     print shops.",
                 )
                 .takes_value(false),
         )
@@ -820,7 +849,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let title = matches.value_of("title").unwrap_or("Titre");
 
     let title_font_size: f32 = matches
-        .value_of("title_font_size").unwrap_or("42").parse()?;
+        .value_of("title_font_size")
+        .unwrap_or("42")
+        .parse()?;
     let title_leading_size = title_font_size * 1.10f32;
     let title_font_size = format!("{}pt", title_font_size);
     let title_leading_size = format!("{}pt", title_leading_size);
@@ -871,7 +902,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     if strip_inner_covers {
         log::info!("Stripping inner covers...");
         let trimmed_pdf_file_name = pdf_handling::remove_second_third_covers(
-            out_folder, &pdf_file_name,
+            out_folder,
+            &pdf_file_name,
         )?;
         log::info!("Stripping done, in {}", trimmed_pdf_file_name);
     }
