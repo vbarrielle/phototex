@@ -343,6 +343,7 @@ struct BookInfo<'a> {
     title: &'a str,
     title_font_size: &'a str,
     title_leading_size: &'a str,
+    title_im_path: Option<&'a Path>,
 }
 
 #[derive(Debug)]
@@ -402,7 +403,7 @@ fn write_toplevel(
     page_infos: &[PageInfo],
 ) -> std::io::Result<String> {
     let mut toplevel_text = include_str!("../data/toplevel.tex").to_string();
-    handle_title_image(&mut toplevel_text, None)?;
+    handle_title_image(&mut toplevel_text, book_info.title_im_path)?;
     replace(
         &mut toplevel_text,
         "PHOTOTEX_TITLE_STRING",
@@ -764,6 +765,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .takes_value(true),
         )
         .arg(
+            clap::Arg::with_name("title_im_name")
+                .long("--title-image-name")
+                .value_name("TITLE_IMAGE_NAME")
+                .help("Name of the image for the title page (with ext).")
+                .takes_value(true),
+        )
+        .arg(
             clap::Arg::with_name("page_format")
                 .long("--page-format")
                 .value_name("PAGE FORMAT")
@@ -817,6 +825,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let title_font_size = format!("{}pt", title_font_size);
     let title_leading_size = format!("{}pt", title_leading_size);
 
+    let title_im_name = matches.value_of("title_im_name");
+
     let nb_cpus = num_cpus::get_physical();
     log::info!("resizing will be parallelized on {} threads", nb_cpus);
     rayon::ThreadPoolBuilder::new()
@@ -837,12 +847,23 @@ fn main() -> Result<(), Box<dyn Error>> {
     let images_path = out_folder.join("images");
     std::fs::create_dir_all(&images_path)?;
     let im_infos = resize_images(im_infos, dpm, page_dims, &images_path)?;
+    let title_im_path = title_im_name.and_then(|name| {
+        for im_info_folder in &im_infos {
+            for im_info in im_info_folder {
+                if im_info.path.ends_with(name) {
+                    return Some(im_info.path.as_path());
+                }
+            }
+        }
+        None
+    });
 
     let page_infos = write_pages(out_folder, &im_infos)?;
     let book_info = BookInfo {
         title,
         title_font_size: &title_font_size,
         title_leading_size: &title_leading_size,
+        title_im_path,
     };
     let top_file_name = write_toplevel(out_folder, book_info, &page_infos)?;
 
