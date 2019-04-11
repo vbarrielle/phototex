@@ -4,10 +4,10 @@ use std::path::Path;
 
 use itertools::Itertools;
 
-use crate::pages;
+use crate::pages::Page;
 use crate::replace;
 use crate::BookInfo;
-use crate::ImageInfo;
+use crate::FolderInfo;
 use crate::LayoutReq;
 use crate::PageInfo;
 
@@ -104,12 +104,13 @@ pub fn write_toplevel(
 
 pub fn write_pages(
     out_folder: &Path,
-    images: &[Vec<ImageInfo>],
+    folder_infos: &[FolderInfo],
 ) -> std::io::Result<Vec<PageInfo>> {
-    let nb_images = images.iter().map(|v| v.len()).sum();
+    let nb_images = folder_infos.iter().map(|v| v.image_infos.len()).sum();
     let mut page_infos = Vec::with_capacity(nb_images);
     let mut page_id = 0;
-    for im_group in images {
+    for folder_info in folder_infos {
+        let im_group = &folder_info.image_infos;
         let nb_in_group = im_group.len();
         let mut group_infos = Vec::with_capacity(nb_in_group);
         let two_landscapes = im_group
@@ -124,17 +125,26 @@ pub fn write_pages(
 
         let mut processed = Vec::with_capacity(nb_in_group);
         for ((page_order, im0), (im1_id, im1)) in two_landscapes {
-            let page_info =
-                pages::write_two_landscapes(out_folder, page_id, im0, im1)?;
+            let page = Page::new(
+                &mut page_id,
+                page_order,
+                &folder_info.folder_spec,
+                out_folder,
+            );
+            let page_info = page.write_two_landscapes(im0, im1)?;
             group_infos.push((page_order, page_info));
-            page_id += 1;
             processed.push(page_order);
             processed.push(im1_id);
         }
         for (page_order, im) in one_portrait {
-            let page_info = pages::write_one_portrait(out_folder, page_id, im)?;
+            let page = Page::new(
+                &mut page_id,
+                page_order,
+                &folder_info.folder_spec,
+                out_folder,
+            );
+            let page_info = page.write_one_portrait(im)?;
             group_infos.push((page_order, page_info));
-            page_id += 1;
             processed.push(page_order);
         }
         let processed: std::collections::HashSet<_> =
@@ -152,63 +162,78 @@ pub fn write_pages(
             }
             let last = missing_id == missing.len() - 1;
             if nb_landscape == 1 && nb_consec == 3 {
-                let page_info = pages::write_two_portraits_one_landscape(
+                let page = Page::new(
+                    &mut page_id,
+                    page_order,
+                    &folder_info.folder_spec,
                     out_folder,
-                    page_id,
+                );
+                let page_info = page.write_two_portraits_one_landscape(
                     &im_group[missing[missing_id - 2]],
                     &im_group[missing[missing_id - 1]],
                     &im_group[page_order],
                 )?;
                 group_infos.push((page_order, page_info));
-                page_id += 1;
                 nb_consec = 0;
                 nb_landscape = 0;
             } else if nb_consec == 4 {
                 // there could be one landscape here, but we accept to have
                 // it small.
-                let page_info = pages::write_four_portraits(
+                let page = Page::new(
+                    &mut page_id,
+                    page_order,
+                    &folder_info.folder_spec,
                     out_folder,
-                    page_id,
+                );
+                let page_info = page.write_four_portraits(
                     &im_group[missing[missing_id - 3]],
                     &im_group[missing[missing_id - 2]],
                     &im_group[missing[missing_id - 1]],
                     &im_group[page_order],
                 )?;
                 group_infos.push((page_order, page_info));
-                page_id += 1;
                 nb_consec = 0;
                 nb_landscape = 0;
             } else if nb_consec == 1 && last {
-                let page_info = pages::write_one_portrait(
+                let page = Page::new(
+                    &mut page_id,
+                    page_order,
+                    &folder_info.folder_spec,
                     out_folder,
-                    page_id,
-                    &im_group[page_order],
-                )?;
+                );
+                let page_info =
+                    page.write_one_portrait(&im_group[page_order])?;
                 group_infos.push((page_order, page_info));
                 page_id += 1;
                 nb_consec = 0;
                 nb_landscape = 0;
             } else if nb_consec == 2 && last {
-                let page_info = pages::write_two_landscapes(
+                let page = Page::new(
+                    &mut page_id,
+                    page_order,
+                    &folder_info.folder_spec,
                     out_folder,
-                    page_id,
+                );
+                let page_info = page.write_two_landscapes(
                     &im_group[missing[missing_id - 1]],
                     &im_group[page_order],
                 )?;
                 group_infos.push((page_order, page_info));
-                page_id += 1;
                 nb_consec = 0;
                 nb_landscape = 0;
             } else if nb_consec == 3 && last {
-                let page_info = pages::write_two_portraits_one_landscape(
+                let page = Page::new(
+                    &mut page_id,
+                    page_order,
+                    &folder_info.folder_spec,
                     out_folder,
-                    page_id,
+                );
+                let page_info = page.write_two_portraits_one_landscape(
                     &im_group[missing[missing_id - 2]],
                     &im_group[missing[missing_id - 1]],
                     &im_group[page_order],
                 )?;
                 group_infos.push((page_order, page_info));
-                page_id += 1;
                 nb_consec = 0;
                 nb_landscape = 0;
             } else if last {

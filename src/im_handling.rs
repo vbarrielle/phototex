@@ -7,7 +7,10 @@ use image::{ImageDecoder, ImageOutputFormat, ImageResult};
 use rayon::prelude::*;
 
 use crate::specs::FolderSpec;
-use crate::{ImageInfo, LayoutReq, Orientation, SourceImageInfo};
+use crate::{
+    FolderInfo, ImageInfo, LayoutReq, Orientation, SourceFolderInfo,
+    SourceImageInfo,
+};
 
 fn image_exif_orientation(path: &Path) -> Orientation {
     let thumbnail = false;
@@ -117,15 +120,15 @@ fn compute_good_dimensions(
     (ideal_w, ideal_h)
 }
 
-pub fn find_images(images: &str, im_ext: &str) -> Vec<Vec<SourceImageInfo>> {
+pub fn find_images(images: &str, im_ext: &str) -> Vec<SourceFolderInfo> {
     let images = Path::new(&images);
     // unwraping on pattern because a bad pattern is a programming error here
-    let mut paths = Vec::new();
+    let mut folder_infos = Vec::new();
     for folder in glob(&images.join("*").to_string_lossy()).unwrap() {
         if let Ok(folder) = folder {
             let folder_spec =
                 FolderSpec::load_or_empty(&folder.join("specs.json"));
-            let mut images = Vec::new();
+            let mut image_infos = Vec::new();
             for image in
                 glob(&folder.join(format!("*.{}", im_ext)).to_string_lossy())
                     .unwrap()
@@ -163,7 +166,7 @@ pub fn find_images(images: &str, im_ext: &str) -> Vec<Vec<SourceImageInfo>> {
                         } else {
                             LayoutReq::Nothing
                         };
-                        images.push(SourceImageInfo {
+                        image_infos.push(SourceImageInfo {
                             path: image,
                             dimensions: image_dims,
                             orientation,
@@ -176,26 +179,30 @@ pub fn find_images(images: &str, im_ext: &str) -> Vec<Vec<SourceImageInfo>> {
                     log::warn!("Ignoring image {:?}", image.unwrap_err());
                 }
             }
-            paths.push(images);
+            folder_infos.push(SourceFolderInfo {
+                image_infos,
+                folder_spec,
+            });
         } else {
             log::warn!("Ignoring folder {:?}", folder.unwrap_err());
         }
     }
-    paths
+    folder_infos
 }
 
 pub fn resize_images(
-    im_infos: Vec<Vec<SourceImageInfo>>,
+    folder_infos: Vec<SourceFolderInfo>,
     dpm: f32,
     page_dims: (f32, f32),
     images_path: &Path,
-) -> Result<Vec<Vec<ImageInfo>>, Box<dyn Error>> {
-    let mut res = Vec::with_capacity(im_infos.len());
-    for (ind, im_folder) in im_infos.iter().enumerate() {
-        let mut cur_folder = Vec::with_capacity(im_folder.len());
+) -> Result<Vec<FolderInfo>, Box<dyn Error>> {
+    let mut res = Vec::with_capacity(folder_infos.len());
+    for (ind, source_folder) in folder_infos.into_iter().enumerate() {
+        let mut image_infos =
+            Vec::with_capacity(source_folder.image_infos.len());
         let folder_path = images_path.join(format!("section_{:02}", ind));
         std::fs::create_dir_all(&folder_path)?;
-        for im_info in im_folder {
+        for im_info in &source_folder.image_infos {
             let ideal_dims =
                 compute_good_dimensions(im_info.dimensions, page_dims, dpm);
             let im_path = &im_info.path;
@@ -206,16 +213,17 @@ pub fn resize_images(
                 }
                 _ => ideal_dims,
             };
-            cur_folder.push(ImageInfo {
+            image_infos.push(ImageInfo {
                 resize_dims: ideal_dims,
                 path: resized_path,
                 rotated_dims,
                 user_req: im_info.user_req,
             });
         }
-        im_folder
+        source_folder
+            .image_infos
             .par_iter()
-            .zip(&cur_folder)
+            .zip(&image_infos)
             .map(|(source, target)| {
                 let im_path = &source.path;
                 let resized_path = &target.path;
@@ -261,7 +269,10 @@ pub fn resize_images(
                 Ok(())
             })
             .collect::<ImageResult<()>>()?;
-        res.push(cur_folder);
+        res.push(FolderInfo {
+            image_infos,
+            folder_spec: source_folder.folder_spec,
+        });
     }
     Ok(res)
 }

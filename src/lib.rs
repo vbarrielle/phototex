@@ -13,11 +13,23 @@ enum LayoutReq {
 }
 
 #[derive(Debug)]
+pub struct SourceFolderInfo {
+    folder_spec: specs::FolderSpec,
+    image_infos: Vec<SourceImageInfo>,
+}
+
+#[derive(Debug)]
 pub struct SourceImageInfo {
     path: PathBuf,
     dimensions: (u32, u32),
     orientation: Orientation,
     user_req: LayoutReq,
+}
+
+#[derive(Debug)]
+pub struct FolderInfo {
+    pub folder_spec: specs::FolderSpec,
+    pub image_infos: Vec<ImageInfo>,
 }
 
 #[derive(Debug)]

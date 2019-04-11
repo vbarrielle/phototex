@@ -127,7 +127,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     log::info!("Using images path: {}", images);
 
-    let im_infos = im_handling::find_images(images, im_ext);
+    let folder_infos = im_handling::find_images(images, im_ext);
     let page_dims = match page_format {
         "A4" => (210., 297.),
         _ => {
@@ -137,11 +137,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
     let images_path = out_folder.join("images");
     std::fs::create_dir_all(&images_path)?;
-    let im_infos =
-        im_handling::resize_images(im_infos, dpm, page_dims, &images_path)?;
+    let folder_infos =
+        im_handling::resize_images(folder_infos, dpm, page_dims, &images_path)?;
     let title_im_path = title_im_name.and_then(|name| {
-        for im_info_folder in &im_infos {
-            for im_info in im_info_folder {
+        for im_info_folder in &folder_infos {
+            for im_info in &im_info_folder.image_infos {
                 if im_info.path.ends_with(name) {
                     return Some(im_info.path.as_path());
                 }
@@ -150,7 +150,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         None
     });
 
-    let page_infos = book_structure::write_pages(out_folder, &im_infos)?;
+    let page_infos = book_structure::write_pages(out_folder, &folder_infos)?;
     let book_info = BookInfo {
         title,
         title_font_size: &title_font_size,
