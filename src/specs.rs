@@ -5,6 +5,7 @@ use serde::Deserialize;
 #[derive(Deserialize, Debug, Clone)]
 pub struct FolderSpec {
     title: Option<String>,
+    #[serde(default)]
     one_portraits: Vec<String>,
 }
 
@@ -28,6 +29,10 @@ impl FolderSpec {
         std::fs::File::open(path)
             .map(std::io::BufReader::new)
             .map(serde_json::from_reader)
+            .map(|spec| {
+                log::info!("Loaded folder spec: {:?}:\n\t{:?}", path, spec);
+                spec
+            })
             .unwrap_or(Ok(FolderSpec::empty()))
             .unwrap_or(FolderSpec::empty())
     }
