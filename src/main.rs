@@ -10,18 +10,21 @@ fn main() -> Result<(), Box<dyn Error>> {
     let matches = clap::App::new("phototex")
         .version("0.1")
         .author("Vincent Barrielle <vincent.barrielle@m4x.org>")
-        .about("Generates latex files for photo albums")
+        .about("Generates latex files for photo albums.")
         .arg(
             clap::Arg::with_name("images")
                 .value_name("FOLDER")
-                .help("Path to the images selection folders")
+                .help("Path to the images selection folders.")
                 .takes_value(true),
         )
         .arg(
             clap::Arg::with_name("out_folder")
                 .short("-o")
+                .long("--output_folder")
                 .value_name("OUT_FOLDER")
-                .help("Path where the latex should be written. Defaults to .")
+                .help(
+                    "Path where the latex should be written. Defaults to '.'.",
+                )
                 .takes_value(true),
         )
         .arg(
@@ -42,7 +45,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             clap::Arg::with_name("title")
                 .long("--title")
                 .value_name("TITLE")
-                .help("Title of the album. Defaults to \"Titre\".")
+                .help("Title of the album. Defaults to \"\".")
                 .takes_value(true),
         )
         .arg(
@@ -56,13 +59,15 @@ fn main() -> Result<(), Box<dyn Error>> {
             clap::Arg::with_name("title_im_name")
                 .long("--title-image-name")
                 .value_name("TITLE_IMAGE_NAME")
-                .help("Name of the image for the title page (with ext).")
+                .help(
+                    "Name of the optional image for the title page (with ext).",
+                )
                 .takes_value(true),
         )
         .arg(
             clap::Arg::with_name("page_format")
                 .long("--page-format")
-                .value_name("PAGE FORMAT")
+                .value_name("PAGE_FORMAT")
                 .help(
                     "Page format. Defaults to A4 portrait. No support for \
                      other formats presently.",
@@ -74,7 +79,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .long("--strip-inner-covers")
                 .help(
                     "With this flag, a version without inner covers will also \
-                     be generated.\nThis can be the required format for  some \
+                     be generated. This can be the required format for  some \
                      print shops.",
                 )
                 .takes_value(false),
@@ -83,7 +88,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             clap::Arg::with_name("verbosity")
                 .short("v")
                 .multiple(true)
-                .help("Increase message verbosity"),
+                .help("Increase message verbosity."),
         )
         .get_matches();
 
@@ -106,7 +111,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let strip_inner_covers = matches.is_present("strip_inner_covers");
 
-    let title = matches.value_of("title").unwrap_or("Titre");
+    let title = matches.value_of("title").unwrap_or("");
 
     let title_font_size: f32 = matches
         .value_of("title_font_size")
