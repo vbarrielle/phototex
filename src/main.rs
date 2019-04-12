@@ -5,6 +5,7 @@ use phototex::book_structure;
 use phototex::im_handling;
 use phototex::pdf_handling;
 use phototex::BookInfo;
+use phototex::PageOrientation;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let matches = clap::App::new("phototex")
@@ -68,9 +69,16 @@ fn main() -> Result<(), Box<dyn Error>> {
             clap::Arg::with_name("page_format")
                 .long("--page-format")
                 .value_name("PAGE_FORMAT")
+                .help("Page format. Currently supported values: 'A4' (default)")
+                .takes_value(true),
+        )
+        .arg(
+            clap::Arg::with_name("page_orientation")
+                .long("--page-orientation")
+                .value_name("PAGE_ORIENTATION")
                 .help(
-                    "Page format. Defaults to A4 portrait. No support for \
-                     other formats presently.",
+                    "Page orientation. Currently supported values: \
+                     'portrait' (default)",
                 )
                 .takes_value(true),
         )
@@ -108,6 +116,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     let dpm = matches.value_of("dpm").unwrap_or("12.").parse()?;
 
     let page_format = matches.value_of("page_format").unwrap_or("A4");
+    let page_orientation =
+        matches.value_of("page_orientation").unwrap_or("portrait");
+    let page_orientation = match page_orientation {
+        "portrait" => PageOrientation::Portrait,
+        "landscape" => PageOrientation::Landscape,
+        "square" => PageOrientation::Square,
+        _ => {
+            log::error!("unsupported page orientation: {}", page_orientation);
+            std::process::exit(1);
+        }
+    };
 
     let strip_inner_covers = matches.is_present("strip_inner_covers");
 
@@ -133,10 +152,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     log::info!("Using images path: {}", images);
 
     let folder_infos = im_handling::find_images(images, im_ext);
-    let page_dims = match page_format {
-        "A4" => (210., 297.),
+    let page_dims = match (page_format, page_orientation) {
+        ("A4", PageOrientation::Portrait) => (210., 297.),
         _ => {
-            log::error!("unsupported page format {}", page_format);
+            log::error!(
+                "unsupported page format/orientation: {}/{}",
+                page_format,
+                page_orientation,
+            );
             std::process::exit(1);
         }
     };

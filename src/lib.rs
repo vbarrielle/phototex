@@ -41,6 +41,24 @@ pub struct ImageInfo {
 }
 
 #[derive(Copy, Clone, Debug)]
+pub enum PageOrientation {
+    Portrait,
+    Landscape,
+    Square,
+}
+
+impl std::fmt::Display for PageOrientation {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            PageOrientation::Portrait => "portrait",
+            PageOrientation::Landscape => "landscape",
+            PageOrientation::Square => "square",
+        }
+        .fmt(f)
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
 enum Orientation {
     // Rotations are clockwise to match image crate
     Rotate90,
