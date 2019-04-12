@@ -4,7 +4,7 @@ use std::path::Path;
 
 use itertools::Itertools;
 
-use crate::pages::Page;
+use crate::pages::{set_section_title, Page};
 use crate::replace;
 use crate::BookInfo;
 use crate::FolderInfo;
@@ -125,24 +125,14 @@ pub fn write_pages(
 
         let mut processed = Vec::with_capacity(nb_in_group);
         for ((page_order, im0), (im1_id, im1)) in two_landscapes {
-            let page = Page::new(
-                &mut page_id,
-                page_order,
-                &folder_info.folder_spec,
-                out_folder,
-            );
+            let page = Page::new(&mut page_id, out_folder);
             let page_info = page.write_two_landscapes(im0, im1)?;
             group_infos.push((page_order, page_info));
             processed.push(page_order);
             processed.push(im1_id);
         }
         for (page_order, im) in one_portrait {
-            let page = Page::new(
-                &mut page_id,
-                page_order,
-                &folder_info.folder_spec,
-                out_folder,
-            );
+            let page = Page::new(&mut page_id, out_folder);
             let page_info = page.write_one_portrait(im)?;
             group_infos.push((page_order, page_info));
             processed.push(page_order);
@@ -162,12 +152,7 @@ pub fn write_pages(
             }
             let last = missing_id == missing.len() - 1;
             if nb_landscape == 1 && nb_consec == 3 {
-                let page = Page::new(
-                    &mut page_id,
-                    page_order,
-                    &folder_info.folder_spec,
-                    out_folder,
-                );
+                let page = Page::new(&mut page_id, out_folder);
                 let page_info = page.write_two_portraits_one_landscape(
                     &im_group[missing[missing_id - 2]],
                     &im_group[missing[missing_id - 1]],
@@ -179,12 +164,7 @@ pub fn write_pages(
             } else if nb_consec == 4 {
                 // there could be one landscape here, but we accept to have
                 // it small.
-                let page = Page::new(
-                    &mut page_id,
-                    page_order,
-                    &folder_info.folder_spec,
-                    out_folder,
-                );
+                let page = Page::new(&mut page_id, out_folder);
                 let page_info = page.write_four_portraits(
                     &im_group[missing[missing_id - 3]],
                     &im_group[missing[missing_id - 2]],
@@ -195,12 +175,7 @@ pub fn write_pages(
                 nb_consec = 0;
                 nb_landscape = 0;
             } else if nb_consec == 1 && last {
-                let page = Page::new(
-                    &mut page_id,
-                    page_order,
-                    &folder_info.folder_spec,
-                    out_folder,
-                );
+                let page = Page::new(&mut page_id, out_folder);
                 let page_info =
                     page.write_one_portrait(&im_group[page_order])?;
                 group_infos.push((page_order, page_info));
@@ -208,12 +183,7 @@ pub fn write_pages(
                 nb_consec = 0;
                 nb_landscape = 0;
             } else if nb_consec == 2 && last {
-                let page = Page::new(
-                    &mut page_id,
-                    page_order,
-                    &folder_info.folder_spec,
-                    out_folder,
-                );
+                let page = Page::new(&mut page_id, out_folder);
                 let page_info = page.write_two_landscapes(
                     &im_group[missing[missing_id - 1]],
                     &im_group[page_order],
@@ -222,12 +192,7 @@ pub fn write_pages(
                 nb_consec = 0;
                 nb_landscape = 0;
             } else if nb_consec == 3 && last {
-                let page = Page::new(
-                    &mut page_id,
-                    page_order,
-                    &folder_info.folder_spec,
-                    out_folder,
-                );
+                let page = Page::new(&mut page_id, out_folder);
                 let page_info = page.write_two_portraits_one_landscape(
                     &im_group[missing[missing_id - 2]],
                     &im_group[missing[missing_id - 1]],
@@ -243,6 +208,14 @@ pub fn write_pages(
         }
 
         group_infos.sort_by_key(|(id, _)| *id);
+        for (page_number, (_, page_info)) in group_infos.iter().enumerate() {
+            let title = if page_number == 0 {
+                folder_info.folder_spec.section_title()
+            } else {
+                None
+            };
+            set_section_title(page_info, title)?;
+        }
         page_infos.extend(group_infos.drain(..).map(|(_, info)| info));
     }
     Ok(page_infos)

@@ -1,44 +1,45 @@
-use std::io::Write;
+use std::io::{Read, Write, BufReader, BufWriter};
+use std::fs::File;
 ///! This module contains functions to write pages with various layouts
 use std::path::{Path, PathBuf};
 
-use crate::specs::FolderSpec;
 use crate::{replace, replace_path, ImageInfo, PageInfo, PageKind};
 
 #[derive(Debug)]
-pub struct Page<'a> {
-    page_order: usize,
-    folder_spec: &'a FolderSpec,
+pub struct Page {
     path: PathBuf,
 }
 
-impl Page<'_> {
-    pub fn new<'a>(
+pub(crate) fn set_section_title(
+    page_info: &PageInfo, title: Option<&str>
+) -> std::io::Result<()> {
+    let file = File::open(&page_info.path)?;
+    let mut buf_reader = BufReader::new(file);
+    let mut page_text = String::new();
+    buf_reader.read_to_string(&mut page_text)?;
+    let comment = "% page title";
+    replace(
+        &mut page_text,
+        "PHOTOTEX_PAGE_TITLE",
+        title.unwrap_or(comment),
+    )
+    .unwrap();
+
+    let f = File::create(&page_info.path)?;
+    let mut writer = BufWriter::new(f);
+    write!(writer, "{}", page_text)?;
+    Ok(())
+}
+
+impl Page {
+    pub fn new(
         page_id: &mut usize,
-        page_order: usize,
-        folder_spec: &'a FolderSpec,
         out_folder: &Path,
-    ) -> Page<'a> {
+    ) -> Page {
         let path = out_folder.join(format!("page{:03}", *page_id));
         *page_id += 1;
         Page {
-            page_order,
-            folder_spec,
             path,
-        }
-    }
-
-    fn set_section_title(&self, page_text: &mut String) {
-        let comment = "% page title";
-        if self.page_order == 0 {
-            replace(
-                page_text,
-                "PHOTOTEX_PAGE_TITLE",
-                self.folder_spec.section_title().unwrap_or(comment),
-            )
-            .unwrap();
-        } else {
-            replace(page_text, "PHOTOTEX_PAGE_TITLE", comment).unwrap();
         }
     }
 
@@ -50,11 +51,10 @@ impl Page<'_> {
         let page_path = &self.path;
         std::fs::create_dir_all(page_path)?;
         let page_path = page_path.join("page.tex");
-        let f = std::fs::File::create(&page_path)?;
-        let mut writer = std::io::BufWriter::new(f);
+        let f = File::create(&page_path)?;
+        let mut writer = BufWriter::new(f);
         let mut page_text =
             include_str!("../data/page_2_landscapes.tex").to_string();
-        self.set_section_title(&mut page_text);
         if let Some(im0_path) = im0.path.canonicalize()?.to_str() {
             replace(&mut page_text, "PHOTOTEX_FIRST_IMAGE_PATH", im0_path)
                 .unwrap();
@@ -94,11 +94,10 @@ impl Page<'_> {
         let page_path = &self.path;
         std::fs::create_dir_all(page_path)?;
         let page_path = page_path.join("page.tex");
-        let f = std::fs::File::create(&page_path)?;
-        let mut writer = std::io::BufWriter::new(f);
+        let f = File::create(&page_path)?;
+        let mut writer = BufWriter::new(f);
         let mut page_text =
             include_str!("../data/page_2_portrait_1_landscape.tex").to_string();
-        self.set_section_title(&mut page_text);
         let (im0_, im1_, im2_);
         if im0.rotated_dims.0 >= im0.rotated_dims.1 {
             im2_ = im0;
@@ -151,11 +150,10 @@ impl Page<'_> {
         let page_path = &self.path;
         std::fs::create_dir_all(page_path)?;
         let page_path = page_path.join("page.tex");
-        let f = std::fs::File::create(&page_path)?;
-        let mut writer = std::io::BufWriter::new(f);
+        let f = File::create(&page_path)?;
+        let mut writer = BufWriter::new(f);
         let mut page_text =
             include_str!("../data/page_4_portraits.tex").to_string();
-        self.set_section_title(&mut page_text);
         replace_path(
             &mut page_text,
             "PHOTOTEX_FIRST_IMAGE_PATH",
@@ -197,11 +195,10 @@ impl Page<'_> {
         let page_path = &self.path;
         std::fs::create_dir_all(page_path)?;
         let page_path = page_path.join("page.tex");
-        let f = std::fs::File::create(&page_path)?;
-        let mut writer = std::io::BufWriter::new(f);
+        let f = File::create(&page_path)?;
+        let mut writer = BufWriter::new(f);
         let mut page_text =
             include_str!("../data/page_1_portrait.tex").to_string();
-        self.set_section_title(&mut page_text);
         if let Some(im_path) = im_info.path.canonicalize()?.to_str() {
             replace(&mut page_text, "PHOTOTEX_IMAGE_PATH", im_path).unwrap();
         } else {
