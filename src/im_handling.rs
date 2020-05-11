@@ -243,7 +243,10 @@ pub fn resize_images(
                     }
                 }
 
-                let im = image::open(im_path)?;
+                let im = image::open(im_path).map_err(|e| {
+                    log::error!("error opening image {:?}: {}", im_path, e);
+                    e
+                })?;
                 log::info!("resizing {:?}", im_path);
                 let (w, h) = target.resize_dims;
                 let im = im.resize(w, h, image::FilterType::Gaussian);
