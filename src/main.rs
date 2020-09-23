@@ -194,6 +194,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let trimmed_pdf_file_name = pdf_handling::remove_second_third_covers(
             out_folder,
             &pdf_file_name,
+            page_infos.len()
         )?;
         log::info!("Stripping done, in {}", trimmed_pdf_file_name);
     }

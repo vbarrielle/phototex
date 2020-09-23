@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::process::Command;
+use num_integer::Integer;
 
 pub fn generate_pdf(
     output_folder: &Path,
@@ -46,6 +47,7 @@ pub fn generate_pdf(
 pub fn remove_second_third_covers(
     output_folder: &Path,
     full_pdf_file_name: &str,
+    nb_pages: usize,
 ) -> std::io::Result<String> {
     let pdf_path = output_folder.join(full_pdf_file_name);
     let mut pdf = lopdf::Document::load(pdf_path)?;
@@ -58,7 +60,11 @@ pub fn remove_second_third_covers(
         ));
     }
     let to_delete = [page_numbers[1], page_numbers[page_numbers.len() - 2]];
-    pdf.delete_pages(&to_delete);
+    if nb_pages.is_even() {
+        pdf.delete_pages(&to_delete);
+    } else {
+        pdf.delete_pages(&to_delete[..1]);
+    }
     let trimmed_pdf_file_name =
         full_pdf_file_name.replace(".pdf", "_trimmed.pdf");
     pdf.save(output_folder.join(&trimmed_pdf_file_name))?;
